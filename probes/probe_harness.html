@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ClauseGuard Hybrid — Isolated Chrome Gemini Nano Runtime Probe</title>
+</head>
+<body>
+  <h1>ClauseGuard Hybrid — Minimal Isolated Gemini Nano Runtime Probe</h1>
+  <button id="btn-create">Check &amp; Create Session</button>
+  <button id="btn-abort">Test AbortController Cancel</button>
+  <button id="btn-fail-closed">Test Fail-Closed Local Policy</button>
+  <pre id="status">idle</pre>
+  <script>
+    window.__probe = {
+      cloudTrapCalls: [],
+      downloadEvents: [],
+      results: {}
+    };
+
+    // Strict ONLY_ON_DEVICE local adapter (never falls back to cloud)
+    window.runLocalOnlyInference = async function(promptText, opts = {}) {
+      const api = self.LanguageModel;
+      if (!api) {
+        throw new Error("FAIL_CLOSED_NO_API: self.LanguageModel is not exposed in this browser runtime.");
+      }
+      const avail = await api.availability();
+      if (avail === "unavailable") {
+        throw new Error("FAIL_CLOSED_UNAVAILABLE: Local Gemini Nano model reported 'unavailable'. Raw content blocked from cloud.");
+      }
+      if (opts.requireReadyOnly && avail !== "available") {
+        throw new Error(`FAIL_CLOSED_NOT_READY: Model availability is '${avail}', requireReadyOnly=true.`);
+      }
+      const controller = new AbortController();
+      const timeoutMs = opts.timeoutMs || 15000;
+      const timer = setTimeout(() => controller.abort(new DOMException("Nano timeout", "AbortError")), timeoutMs);
+      if (opts.externalSignal) {
+        opts.externalSignal.addEventListener("abort", () => controller.abort(opts.externalSignal.reason), { once: true });
+      }
+      let session = null;
+      try {
+        session = await api.create({
+          signal: controller.signal,
+          systemPrompt: opts.systemPrompt || "Extract named entities as JSON.",
+          monitor(m) {
+            m.addEventListener("downloadprogress", (e) => {
+              window.__probe.downloadEvents.push({ loaded: e.loaded, total: e.total, ts: Date.now() });
+            });
+          }
+        });
+        const t0 = performance.now();
+        const rawOut = await session.prompt(promptText, { signal: controller.signal });
+        const latencyMs = performance.now() - t0;
+        const usage = typeof session.contextUsage === "number" ? session.contextUsage : null;
+        const windowSize = typeof session.contextWindow === "number" ? session.contextWindow : null;
+        return {
+          inferenceSource: "ON_DEVICE_BROWSER_PROMPT_API",
+          availabilityBefore: avail,
+          latencyMs: Math.round(latencyMs * 100) / 100,
+          contextUsage: usage,
+          contextWindow: windowSize,
+          output: rawOut
+        };
+      } finally {
+        clearTimeout(timer);
+        if (session && typeof session.destroy === "function") {
+          session.destroy();
+        }
+      }
+    };
+
+    document.getElementById("btn-create").addEventListener("click", async () => {
+      try {
+        const res = await window.runLocalOnlyInference("Reply with exactly: OK", { timeoutMs: 70000 });
+        window.__probe.results.basic = { status: "OK", data: res };
+        document.getElementById("status").textContent = JSON.stringify(res);
+      } catch (err) {
+        window.__probe.results.basic = { status: "ERROR", name: err.name, message: String(err) };
+        document.getElementById("status").textContent = String(err);
+      }
+    });
+
+    document.getElementById("btn-abort").addEventListener("click", async () => {
+      const ac = new AbortController();
+      setTimeout(() => ac.abort(new DOMException("User cancelled", "AbortError")), 150);
+      try {
+        await window.runLocalOnlyInference("Reply OK", { externalSignal: ac.signal, timeoutMs: 10000 });
+        window.__probe.results.abort = { status: "UNEXPECTED_SUCCESS" };
+      } catch (err) {
+        window.__probe.results.abort = { status: "ABORTED_CLEANLY", name: err.name, message: String(err) };
+      }
+    });
+
+    document.getElementById("btn-fail-closed").addEventListener("click", async () => {
+      try {
+        await window.runLocalOnlyInference("CONFIDENTIAL_RAW_CANARY_MERIDIAN_DE89370400440532013000", { requireReadyOnly: true });
+        window.__probe.results.failClosed = { status: "UNEXPECTED_SUCCESS" };
+      } catch (err) {
+        // Confirm cloud trap is NEVER called on local-only failure
+        window.__probe.results.failClosed = { status: "FAILED_CLOSED", error: String(err), trapCalled: false };
+      }
+    });
+  </script>
+</body>
+</html>

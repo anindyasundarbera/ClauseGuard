@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:12,000
+ClauseGuard Hybrid protects confidential commercial contracts inside your browser before cloud AI ever sees a clause.
+
+2
+00:00:12,000 --> 00:00:26,000
+Step 1: Look at the Chrome Local AI badge. We transparently report whether Gemini Nano is ready, pending model weights, or running in fail-closed deterministic safe mode.
+
+3
+00:00:26,000 --> 00:00:44,000
+Step 2: Import a PDF, DOCX, or synthetic MSA contract. Local NFKC normalization strips invisible characters while Layer-1 scrubbers catch IBANs, SSNs, emails, and API keys in milliseconds.
+
+4
+00:00:44,000 --> 00:01:02,000
+Step 3: Our ARCH-RET-4.1 Entity Graph resolves organizations and aliases without vector model bloat, separating workspace identity from ephemeral document-local contract roles.
+
+5
+00:01:02,000 --> 00:01:22,000
+Step 4: Inside the Editorial Trust Airlock, inspect grouped entities, accept or restore terms, and verify the exact sanitized payload and SHA-256 digest before any cloud call occurs.
+
+6
+00:01:22,000 --> 00:01:40,000
+Step 5: With explicit approval bound to the payload SHA-256, only surface-indexed placeholders like [ORG_CLIENT_1] cross to cloud synthesis—catching Clause 14.1 vs 9.3 carve-out traps.
+
+7
+00:01:40,000 --> 00:02:00,000
+Step 6: Results rehydrate strictly in browser RAM, while unmapped tags are highlighted explicitly. Editing any entity invalidates prior approval immediately.
+
+8
+00:02:00,000 --> 00:02:22,000
+Step 7: Toggle Airplane Mode for offline local triage, inspect the 16-field Privacy Processing Report, or purge session RAM and encrypted IndexedDB storage with one click.

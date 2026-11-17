@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://generativelanguage.googleapis.com; img-src 'self' data:; object-src 'none';" />
+  <title>ClauseGuard Hybrid — Privacy-First Hybrid AI Contract Airlock</title>
+  <link rel="stylesheet" href="./src/ui/styles.css" />
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <div>
+      <h1>ClauseGuard Hybrid <span class="badge badge-primary">MVP v1.0</span></h1>
+      <p class="subtitle">Local Document Airlock (<code>ONLY_ON_DEVICE</code>) &amp; SHA-256-Approved Cloud Synthesis (<code>ONLY_IN_CLOUD</code>)</p>
+    </div>
+    <div class="readiness-box" aria-live="polite">
+      <span class="label">Chrome Local AI:</span>
+      <strong id="nano-readiness-badge" data-testid="nano-readiness-badge">CHECKING</strong>
+      <div id="nano-readiness-detail" class="small-note">Probing runtime...</div>
+    </div>
+  </header>
+
+  <section class="disclosure-banner" role="note">
+    <strong>Boundary Notice:</strong> Raw contract files, source spans, and local redaction maps stay strictly in browser RAM unless you explicitly enable encrypted Workspace storage. Cloud synthesis sends <em>only</em> the exact sanitized payload you review and approve. Use a clean/Incognito Chrome profile to isolate third-party browser extensions.
+  </section>
+
+  <main class="grid-layout" role="main">
+    <!-- Left Column: Import, Mode, Local Detection & Airlock -->
+    <section class="panel" aria-labelledby="sec-ingest">
+      <h2 id="sec-ingest">1. Local Contract Import &amp; Mode</h2>
+      <div class="controls-row">
+        <label class="file-btn">
+          Import PDF / DOCX / TXT
+          <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
+        </label>
+        <select id="privacy-mode-select" data-testid="privacy-mode-select" aria-label="Privacy Mode">
+          <option value="LOCAL_ONLY">LOCAL_ONLY (0 Cloud Requests)</option>
+          <option value="DEGRADED_DETERMINISTIC_SAFE">DEGRADED_DETERMINISTIC_SAFE (Local Fail-Closed)</option>
+          <option value="HYBRID_ANONYMIZED">HYBRID_ANONYMIZED (Sanitized Cloud After Approval)</option>
+        </select>
+        <button id="btn-purge" data-testid="btn-purge" class="btn-danger" type="button">Purge Session &amp; Storage</button>
+      </div>
+
+      <div class="samples-row" id="sample-buttons"></div>
+      <div id="warnings-box" data-testid="warnings-box" class="warnings-box" hidden></div>
+
+      <h3>2. Editorial Trust Airlock (Grouped Entities &amp; Roles)</h3>
+      <p class="small-note">Contractual roles stay strictly ephemeral per document. Unapproved changes invalidate any prior cloud approval.</p>
+
+      <form id="manual-entity-form" class="manual-form">
+        <input id="manual-surface" type="text" placeholder="Exact phrase to mask everywhere..." spellcheck="false" autocomplete="off" />
+        <select id="manual-category" aria-label="Entity Category">
+          <option value="ORG">ORG</option>
+          <option value="PERSON">PERSON</option>
+          <option value="CODENAME">CODENAME</option>
+          <option value="BANK">BANK</option>
+          <option value="CURRENCY_CAP">CURRENCY_CAP</option>
+        </select>
+        <select id="manual-role" aria-label="Document Role">
+          <option value="CLIENT">CLIENT</option>
+          <option value="VENDOR">VENDOR</option>
+          <option value="BUYER">BUYER</option>
+          <option value="TARGET">TARGET</option>
+          <option value="PARTY">PARTY</option>
+        </select>
+        <button id="btn-add-entity" type="submit" class="btn-secondary">Mask Phrase</button>
+      </form>
+
+      <div class="controls-row">
+        <button id="btn-accept-all" data-testid="btn-accept-all" type="button" class="btn-secondary">Accept All Pending Entities</button>
+      </div>
+      <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
+    </section>
+
+    <!-- Right Column: Outgoing Sanitized Payload, Approval Gate, Findings & Privacy Report -->
+    <section class="panel" aria-labelledby="sec-payload">
+      <h2 id="sec-payload">3. Exact Outgoing Cloud Payload &amp; SHA-256 Gate</h2>
+      <div class="status-strip">
+        <span>Approval State: <strong id="approval-state" data-testid="approval-state">EMPTY</strong></span>
+        <span>Payload SHA-256: <code id="payload-sha" data-testid="payload-sha">NONE</code></span>
+      </div>
+
+      <pre id="sanitized-preview" data-testid="sanitized-preview" class="payload-pre" spellcheck="false" translate="no">(Import a contract or select a synthetic sample to inspect the exact sanitized payload.)</pre>
+
+      <div class="approval-gate">
+        <label class="consent-check">
+          <input id="chk-explicit-consent" data-testid="chk-explicit-consent" type="checkbox" />
+          I have inspected the exact sanitized payload above and approve sending ONLY this anonymized text for cloud cross-clause risk synthesis.
+        </label>
+        <div class="cloud-config-row">
+          <input id="gemini-api-key" type="password" placeholder="Optional Gemini API Key (blank = local simulated synthesis)" autocomplete="off" />
+          <label class="inline-check">
+            <input id="chk-sim-cloud" type="checkbox" checked />
+            Allow Labeled Local Simulated Cloud Synthesis
+          </label>
+        </div>
+        <div class="actions-row">
+          <button id="btn-approve-payload" data-testid="btn-approve-payload" class="btn-primary" type="button" disabled>1. Approve Exact Payload</button>
+          <button id="btn-analyze-cloud" data-testid="btn-analyze-cloud" class="btn-primary" type="button" disabled>2. Analyze Sanitized Payload</button>
+          <button id="btn-local-triage" data-testid="btn-local-triage" class="btn-secondary" type="button" disabled>Local ONLY_ON_DEVICE Triage</button>
+        </div>
+      </div>
+
+      <h3>4. Cross-Clause Risk Findings &amp; Local Rehydration</h3>
+      <div id="findings-list" data-testid="findings-list" class="findings-list"></div>
+
+      <h3>5. Optional Encrypted Workspace Vault &amp; 16-Field Privacy Report</h3>
+      <div class="vault-row">
+        <input id="vault-workspace-id" type="text" value="default-client-workspace" aria-label="Workspace ID" />
+        <input id="vault-passphrase" type="password" placeholder="Passphrase (>=8 chars) for AES-GCM IDB" />
+        <button id="btn-save-vault" type="button" class="btn-secondary">Commit Approved to Encrypted Vault</button>
+        <button id="btn-unlock-vault" type="button" class="btn-secondary">Unlock Vault</button>
+      </div>
+      <div class="actions-row">
+        <button id="btn-export-report" data-testid="btn-export-report" type="button" class="btn-secondary">Download 16-Field Privacy Report JSON</button>
+      </div>
+      <pre id="privacy-report-pre" data-testid="privacy-report-pre" class="report-pre"></pre>
+    </section>
+  </main>
+
+  <script type="module" src="./src/ui/app.ts"></script>
+</body>
+</html>

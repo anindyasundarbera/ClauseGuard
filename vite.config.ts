@@ -1,0 +1,18 @@
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  base: "./",
+  server: {
+    host: "127.0.0.1",
+    port: 4173,
+    strictPort: true
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: false
+  },
+  test: {
+    environment: "jsdom",
+    include: ["tests/unit/**/*.test.ts"]
+  }
+});
