@@ -3,31 +3,45 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://generativelanguage.googleapis.com; img-src 'self' data:; object-src 'none';" />
-  <title>ClauseGuard Hybrid — Privacy-First Hybrid AI Contract Airlock</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://firebasevertexai.googleapis.com https://content-firebaseappcheck.googleapis.com https://firebaseappcheck.googleapis.com https://firebaseremoteconfig.googleapis.com https://firebaseinstallations.googleapis.com; frame-src https://www.google.com/recaptcha/; img-src 'self' data:; object-src 'none';" />
+  <title>ClauseGuard Hybrid — Privacy-First Firebase AI Logic Contract Airlock</title>
   <link rel="stylesheet" href="./src/ui/styles.css" />
 </head>
 <body>
   <header class="topbar" role="banner">
     <div>
-      <h1>ClauseGuard Hybrid <span class="badge badge-primary">MVP v1.0</span></h1>
-      <p class="subtitle">Local Document Airlock (<code>ONLY_ON_DEVICE</code>) &amp; SHA-256-Approved Cloud Synthesis (<code>ONLY_IN_CLOUD</code>)</p>
+      <h1>ClauseGuard Hybrid <span class="badge badge-primary">Firebase AI Logic</span></h1>
+      <p class="subtitle">On-Device Raw Extraction (<code>ONLY_ON_DEVICE</code>) &amp; SHA-256-Approved Cloud Risk Synthesis (<code>ONLY_IN_CLOUD</code>)</p>
     </div>
     <div class="readiness-box" aria-live="polite">
-      <span class="label">Chrome Local AI:</span>
-      <strong id="nano-readiness-badge" data-testid="nano-readiness-badge">CHECKING</strong>
+      <div class="readiness-line">
+        <span class="label">Gemini Nano (<code>ONLY_ON_DEVICE</code>):</span>
+        <strong id="nano-readiness-badge" data-testid="nano-readiness-badge">CHECKING</strong>
+      </div>
       <div id="nano-readiness-detail" class="small-note">Probing runtime...</div>
+      <div class="readiness-actions">
+        <button id="btn-init-nano" data-testid="btn-init-nano" type="button" class="btn-secondary btn-compact">Initialize / Download On-Device Model</button>
+        <span id="nano-download-progress" data-testid="nano-download-progress" class="small-note"></span>
+      </div>
     </div>
   </header>
 
+  <section class="telemetry-strip" aria-label="Firebase AI Logic & App Check Runtime Status">
+    <span><strong>SDK:</strong> <code id="firebase-sdk-badge">firebase@13.4.0 (@firebase/ai@3.1.0)</code></span>
+    <span><strong>App Check:</strong> <code id="appcheck-status-badge" data-testid="appcheck-status-badge">LOCAL_ONLY_NO_CLOUD</code></span>
+    <span><strong>Cloud Model:</strong> <code id="cloud-model-badge" data-testid="cloud-model-badge">gemini-3.5-flash-lite</code></span>
+    <span><strong>Observed Source:</strong> <code id="observed-source-badge" data-testid="observed-source-badge">NONE</code></span>
+  </section>
+
   <section class="disclosure-banner" role="note">
-    <strong>Boundary Notice:</strong> Raw contract files, source spans, and local redaction maps stay strictly in browser RAM unless you explicitly enable encrypted Workspace storage. Cloud synthesis sends <em>only</em> the exact sanitized payload you review and approve. Use a clean/Incognito Chrome profile to isolate third-party browser extensions.
+    <strong>Trust Boundary Guarantee:</strong> Raw contract files, source spans, and local redaction maps stay strictly in browser RAM unless you enable AES-GCM-256 Encrypted Workspace storage. <code>PREFER_ON_DEVICE</code> is banned for raw documents: if Chrome Gemini Nano weights are unavailable, raw analysis fails closed to deterministic local detectors with <strong>0 cloud packets</strong>. Cloud synthesis uses <code>InferenceMode.ONLY_IN_CLOUD</code> + Firebase App Check strictly on your SHA-256-approved sanitized payload.
   </section>
 
   <main class="grid-layout" role="main">
     <!-- Left Column: Import, Mode, Local Detection & Airlock -->
     <section class="panel" aria-labelledby="sec-ingest">
-      <h2 id="sec-ingest">1. Local Contract Import &amp; Mode</h2>
+      <h2 id="sec-ingest">1. Local Contract Import &amp; Privacy Mode</h2>
+      <p class="small-note">Supported local parsers: Digital PDF (<code>isEvalSupported: false</code>), DOCX, and TXT/MD. Start immediately with a synthetic contract or upload your own file.</p>
       <div class="controls-row">
         <label class="file-btn">
           Import PDF / DOCX / TXT
@@ -41,14 +55,14 @@
         <button id="btn-purge" data-testid="btn-purge" class="btn-danger" type="button">Purge Session &amp; Storage</button>
       </div>
 
-      <div class="samples-row" id="sample-buttons"></div>
-      <div id="warnings-box" data-testid="warnings-box" class="warnings-box" hidden></div>
+      <div class="samples-row" id="sample-buttons" aria-label="Synthetic Sample Contracts"></div>
+      <div id="warnings-box" data-testid="warnings-box" class="warnings-box" role="status" aria-live="polite" hidden></div>
 
-      <h3>2. Editorial Trust Airlock (Grouped Entities &amp; Roles)</h3>
-      <p class="small-note">Contractual roles stay strictly ephemeral per document. Unapproved changes invalidate any prior cloud approval.</p>
+      <h3>2. Editorial Trust Airlock (Grouped Entities &amp; Ephemeral Roles)</h3>
+      <p class="small-note">Review detected PII, secrets, organizations, banks, and caps. Any edit immediately invalidates prior cloud approval.</p>
 
       <form id="manual-entity-form" class="manual-form">
-        <input id="manual-surface" type="text" placeholder="Exact phrase to mask everywhere..." spellcheck="false" autocomplete="off" />
+        <input id="manual-surface" type="text" placeholder="Exact phrase to mask everywhere..." spellcheck="false" autocomplete="off" aria-label="Exact phrase to mask" />
         <select id="manual-category" aria-label="Entity Category">
           <option value="ORG">ORG</option>
           <option value="PERSON">PERSON</option>
@@ -85,15 +99,39 @@
       <div class="approval-gate">
         <label class="consent-check">
           <input id="chk-explicit-consent" data-testid="chk-explicit-consent" type="checkbox" />
-          I have inspected the exact sanitized payload above and approve sending ONLY this anonymized text for cloud cross-clause risk synthesis.
+          I have inspected the exact sanitized payload above and approve sending ONLY this anonymized text via Firebase AI Logic (<code>ONLY_IN_CLOUD</code>) for cross-clause risk synthesis.
         </label>
+
         <div class="cloud-config-row">
-          <input id="gemini-api-key" type="password" placeholder="Optional Gemini API Key (blank = local simulated synthesis)" autocomplete="off" />
+          <label for="cloud-model-select">Cloud Model:</label>
+          <select id="cloud-model-select" data-testid="cloud-model-select" aria-label="Supported Firebase Cloud Model">
+            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (SDK Default, Free Tier)</option>
+            <option value="gemini-3.8-flash">gemini-3.8-flash (Frontier Free Tier)</option>
+            <option value="gemini-4-hydrogen">gemini-4-hydrogen (Flagship Efficiency, Free Tier)</option>
+          </select>
           <label class="inline-check">
             <input id="chk-sim-cloud" type="checkbox" checked />
-            Allow Labeled Local Simulated Cloud Synthesis
+            Allow Labeled Local Simulated Synthesis (when no Firebase config loaded)
           </label>
         </div>
+
+        <details class="firebase-drawer">
+          <summary>Firebase Project, App Check &amp; Remote Config Setup (Optional Live Cloud Override)</summary>
+          <p class="small-note">Configure via <code>.env</code> (see <code>.env.example</code>) or paste your Firebase Web Config JSON in RAM below. Never share or commit App Check debug tokens.</p>
+          <textarea id="firebase-config-json" data-testid="firebase-config-json" rows="4" placeholder='{"apiKey":"...","projectId":"...","appId":"..."}' spellcheck="false"></textarea>
+          <div class="cloud-config-row">
+            <input id="recaptcha-site-key" type="text" placeholder="Production reCAPTCHA Enterprise Site Key (or leave blank for localhost debug)" autocomplete="off" />
+            <label class="inline-check">
+              <input id="chk-debug-appcheck" type="checkbox" />
+              Localhost App Check Debug Token Mode
+            </label>
+          </div>
+          <div class="actions-row">
+            <button id="btn-apply-firebase" data-testid="btn-apply-firebase" type="button" class="btn-secondary">Apply Firebase Config in RAM</button>
+            <button id="btn-sync-remote-config" data-testid="btn-sync-remote-config" type="button" class="btn-secondary">Sync Guardrailed Remote Config</button>
+          </div>
+        </details>
+
         <div class="actions-row">
           <button id="btn-approve-payload" data-testid="btn-approve-payload" class="btn-primary" type="button" disabled>1. Approve Exact Payload</button>
           <button id="btn-analyze-cloud" data-testid="btn-analyze-cloud" class="btn-primary" type="button" disabled>2. Analyze Sanitized Payload</button>
@@ -107,7 +145,7 @@
       <h3>5. Optional Encrypted Workspace Vault &amp; 16-Field Privacy Report</h3>
       <div class="vault-row">
         <input id="vault-workspace-id" type="text" value="default-client-workspace" aria-label="Workspace ID" />
-        <input id="vault-passphrase" type="password" placeholder="Passphrase (>=8 chars) for AES-GCM IDB" />
+        <input id="vault-passphrase" type="password" placeholder="Passphrase (&gt;=8 chars) for AES-GCM IDB" aria-label="Workspace Passphrase" />
         <button id="btn-save-vault" type="button" class="btn-secondary">Commit Approved to Encrypted Vault</button>
         <button id="btn-unlock-vault" type="button" class="btn-secondary">Unlock Vault</button>
       </div>

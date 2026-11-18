@@ -2,7 +2,12 @@ import {
   ClauseGuardSessionController,
   SYNTHETIC_SAMPLE_CONTRACTS,
 } from "../core/sessionController.ts";
-import type { ContractRole, DetectedEntity } from "../core/types.ts";
+import type {
+  ContractRole,
+  DetectedEntity,
+  FirebaseRuntimeConfig,
+  SupportedFirebaseCloudModel,
+} from "../core/types.ts";
 
 const controller = new ClauseGuardSessionController();
 (window as unknown as { __clauseguardController?: ClauseGuardSessionController }).__clauseguardController =
@@ -14,6 +19,19 @@ function renderAll(): void {
   el("nano-readiness-badge").textContent = controller.readinessState;
   el("nano-readiness-detail").textContent = controller.readinessDetail;
   el<HTMLSelectElement>("privacy-mode-select").value = controller.privacyMode;
+  el<HTMLSelectElement>("cloud-model-select").value = controller.selectedCloudModel;
+
+  const telemetry = controller.getObservedFirebaseTelemetry();
+  el("firebase-sdk-badge").textContent = telemetry.sdkVersion;
+  el("appcheck-status-badge").textContent = telemetry.appCheckStatus;
+  el("cloud-model-badge").textContent = telemetry.activeCloudModel;
+  const obsSrc =
+    telemetry.lastCloudInferenceSource ??
+    telemetry.lastLocalInferenceSource ??
+    "NONE";
+  el("observed-source-badge").textContent = obsSrc;
+  el("nano-download-progress").textContent =
+    telemetry.downloadProgressPct !== null ? `Progress: ${telemetry.downloadProgressPct}%` : "";
 
   const warnBox = el("warnings-box");
   warnBox.replaceChildren();
@@ -154,7 +172,7 @@ function renderAll(): void {
     const fc = document.createElement("div");
     fc.className = "finding-card";
     const h = document.createElement("strong");
-    h.textContent = `[${f.severity}] ${f.title} (${f.analysisSource})`;
+    h.textContent = `[${f.severity}] ${f.title} (${f.analysisSource}${f.observedInferenceSource ? ` | sdk:${f.observedInferenceSource}` : ""})`;
     const pAnon = document.createElement("div");
     pAnon.className = "small-note";
     pAnon.textContent = `Anonymized Cloud Excerpt: ${f.anonymizedExcerpt}`;
@@ -193,6 +211,11 @@ async function initUi(): Promise<void> {
     samplesDiv.appendChild(b);
   }
 
+  el("btn-init-nano").addEventListener("click", async () => {
+    await controller.initializeOnDeviceModel();
+    renderAll();
+  });
+
   el<HTMLInputElement>("file-input").addEventListener("change", async (ev) => {
     const file = (ev.target as HTMLInputElement).files?.[0];
     if (!file) return;
@@ -211,11 +234,58 @@ async function initUi(): Promise<void> {
   });
 
   el<HTMLSelectElement>("privacy-mode-select").addEventListener("change", (ev) => {
-    controller.privacyMode = (ev.target as HTMLSelectElement).value as "LOCAL_ONLY" | "HYBRID_ANONYMIZED";
+    controller.privacyMode = (ev.target as HTMLSelectElement).value as
+      | "LOCAL_ONLY"
+      | "HYBRID_ANONYMIZED"
+      | "DEGRADED_DETERMINISTIC_SAFE";
+    renderAll();
+  });
+
+  el<HTMLSelectElement>("cloud-model-select").addEventListener("change", (ev) => {
+    controller.selectedCloudModel = (ev.target as HTMLSelectElement).value as SupportedFirebaseCloudModel;
     renderAll();
   });
 
   el<HTMLInputElement>("chk-explicit-consent").addEventListener("change", () => renderAll());
+
+  el("btn-apply-firebase").addEventListener("click", () => {
+    try {
+      const rawJson = el<HTMLTextAreaElement>("firebase-config-json").value.trim();
+      if (!rawJson) {
+        controller.setFirebaseConfig(null);
+        controller.warnings.push("Cleared custom Firebase config from RAM.");
+        renderAll();
+        return;
+      }
+      const parsed = JSON.parse(rawJson) as Partial<FirebaseRuntimeConfig>;
+      const siteKey = el<HTMLInputElement>("recaptcha-site-key").value.trim();
+      const debugChecked = el<HTMLInputElement>("chk-debug-appcheck").checked;
+      controller.setFirebaseConfig({
+        ...parsed,
+        recaptchaEnterpriseSiteKey: siteKey || parsed.recaptchaEnterpriseSiteKey,
+        debugAppCheckToken: debugChecked ? true : parsed.debugAppCheckToken,
+        cloudModelId: controller.selectedCloudModel,
+      });
+      controller.warnings.push(
+        `Loaded Firebase Web Config for project '${parsed.projectId ?? "unknown"}' in ephemeral browser RAM.`
+      );
+    } catch (err) {
+      controller.warnings.push(`Invalid Firebase JSON config: ${String(err)}`);
+    }
+    renderAll();
+  });
+
+  el("btn-sync-remote-config").addEventListener("click", async () => {
+    try {
+      const snap = await controller.syncRemoteConfigSafely();
+      controller.warnings.push(
+        `Remote Config synced (${snap.source}): cloudModel=${snap.cloudModelName}, playbook=${snap.playbookId}. Safety invariants locked.`
+      );
+    } catch (err) {
+      controller.warnings.push(`Remote Config sync failed safely: ${String(err)}`);
+    }
+    renderAll();
+  });
 
   el<HTMLFormElement>("manual-entity-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -245,13 +315,10 @@ async function initUi(): Promise<void> {
 
   el("btn-analyze-cloud").addEventListener("click", async () => {
     try {
-      const apiKey = el<HTMLInputElement>("gemini-api-key").value.trim() || undefined;
       const simOk = el<HTMLInputElement>("chk-sim-cloud").checked;
-      const customUrl = (window as unknown as { __clauseguardCloudUrl?: string }).__clauseguardCloudUrl;
       await controller.runApprovedCloudAnalysis({
-        cloudEndpointUrl: customUrl,
-        geminiApiKey: apiKey,
         allowSimulatedCloud: simOk,
+        modelId: controller.selectedCloudModel,
       });
     } catch (err) {
       controller.warnings.push(String(err));
@@ -306,7 +373,9 @@ async function initUi(): Promise<void> {
 
   el("btn-purge").addEventListener("click", async () => {
     el<HTMLInputElement>("chk-explicit-consent").checked = false;
-    el<HTMLInputElement>("gemini-api-key").value = "";
+    el<HTMLTextAreaElement>("firebase-config-json").value = "";
+    el<HTMLInputElement>("recaptcha-site-key").value = "";
+    el<HTMLInputElement>("chk-debug-appcheck").checked = false;
     el<HTMLInputElement>("vault-passphrase").value = "";
     await controller.purgeAllSessionAndStorage();
     renderAll();

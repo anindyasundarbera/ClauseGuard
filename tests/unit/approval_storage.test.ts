@@ -127,6 +127,7 @@ describe("Approval State Machine, ZeroCanaryPreflight, WebCrypto Vault & Session
 
   it("completes full end-to-end controller workflow, SafeLogger redaction, and 16-field Privacy Report", async () => {
     const ctrl = new ClauseGuardSessionController();
+    ctrl.setFirebaseConfig(null);
     await ctrl.ingestFileOrText({
       fileName: SYNTHETIC_SAMPLE_CONTRACTS[0].fileName,
       mimeType: "text/plain",

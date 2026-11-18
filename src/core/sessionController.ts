@@ -1,9 +1,22 @@
 import { runDeterministicDetectors } from "./detection/deterministicDetectors.ts";
+import { PrivacyBoundaryError } from "./errors.ts";
+import {
+  CLAUSEGUARD_FIREBASE_SDK_VERSION,
+  DEFAULT_CLOUD_MODEL_ID,
+  ensureCloudFirebaseRuntime,
+  isLiveFirebaseConfig,
+  readFirebaseEnvConfig,
+  resetCloudFirebaseRuntime,
+  validateSupportedCloudModel,
+} from "./firebase/firebaseClient.ts";
+import {
+  DEFAULT_REMOTE_CONFIG_SNAPSHOT,
+  fetchGuardrailedRemoteConfig,
+} from "./firebase/remoteConfigGuard.ts";
 import {
   analyzeApprovedPayload,
   ApprovalStateMachine,
   type ApprovalRecord,
-  PrivacyBoundaryError,
 } from "./inference/approvalMachine.ts";
 import { parseDocxBytes, parsePdfBytes, parsePlainText } from "./ingestion/fileParser.ts";
 import { sha256BytesHex, sha256Hex } from "./ingestion/normalizer.ts";
@@ -12,6 +25,7 @@ import {
   resolveEntitiesWithGraph,
 } from "./intelligence/entityGraph.ts";
 import {
+  initializeOnDeviceModelWithGesture,
   probeNanoReadiness,
   runChunkOnDeviceNano,
   runLocalSingleClauseTriage,
@@ -25,16 +39,21 @@ import {
 } from "./storage/encryptedVault.ts";
 import { buildPrivacyProcessingReport16, SafeLogger } from "./telemetry/privacyReport.ts";
 import type {
+  AppCheckStatus,
   CanonicalEntity,
   ContractFinding,
   ContractRole,
   DetectedEntity,
   DocumentEntityBinding,
+  FirebaseRuntimeConfig,
   NanoReadinessState,
   NormalizedDocument,
+  ObservedFirebaseTelemetry,
   PrivacyMode,
   PrivacyProcessingAndEgressReport16,
   RedactionResult,
+  RemoteConfigRuntimeSnapshot,
+  SupportedFirebaseCloudModel,
   WorkspaceVaultSnapshot,
 } from "./types.ts";
 
@@ -84,7 +103,7 @@ export class ClauseGuardSessionController {
   public sessionId: string = `CG-${Date.now()}`;
   public privacyMode: PrivacyMode = "LOCAL_ONLY";
   public readinessState: NanoReadinessState = "CHECKING";
-  public readinessDetail = "Checking Chrome local AI readiness...";
+  public readinessDetail = "Checking Chrome local AI readiness via Firebase AI Logic...";
   public document: NormalizedDocument | null = null;
   public rawDocumentSha256 = "NONE";
   public entities: DetectedEntity[] = [];
@@ -96,6 +115,15 @@ export class ClauseGuardSessionController {
   public warnings: string[] = [];
   public localInferenceSource = "DETERMINISTIC_ONLY";
   public cloudInferenceSource: string | null = null;
+
+  public firebaseConfig: Partial<FirebaseRuntimeConfig> | null = readFirebaseEnvConfig();
+  public selectedCloudModel: SupportedFirebaseCloudModel = DEFAULT_CLOUD_MODEL_ID;
+  public appCheckStatus: AppCheckStatus = "LOCAL_ONLY_NO_CLOUD";
+  public firebaseInitSequence: string[] = [];
+  public lastLocalSdkSource: "on_device" | "DEGRADED_DETERMINISTIC_SAFE" | null = null;
+  public lastCloudSdkSource: "in_cloud" | "SIMULATED_CLOUD_SYNTHESIS" | null = null;
+  public downloadProgressPct: number | null = null;
+  public remoteConfigSnapshot: RemoteConfigRuntimeSnapshot = { ...DEFAULT_REMOTE_CONFIG_SNAPSHOT };
 
   // Ephemeral RAM workspace by default; optional encrypted IDB persistence
   public workspaceId = "EPHEMERAL_INCOGNITO";
@@ -119,6 +147,55 @@ export class ClauseGuardSessionController {
   ];
   public rejectionAllowlist = new Set<string>(["state of delaware", "monthly performance review"]);
 
+  constructor() {
+    if (this.firebaseConfig?.cloudModelId) {
+      try {
+        this.selectedCloudModel = validateSupportedCloudModel(this.firebaseConfig.cloudModelId);
+      } catch {
+        this.selectedCloudModel = DEFAULT_CLOUD_MODEL_ID;
+      }
+    }
+    if (isLiveFirebaseConfig(this.firebaseConfig)) {
+      this.appCheckStatus = this.firebaseConfig.recaptchaEnterpriseSiteKey
+        ? "RECAPTCHA_ENTERPRISE_READY"
+        : this.firebaseConfig.debugAppCheckToken
+          ? "DEBUG_PROVIDER_READY"
+          : "NOT_INITIALIZED";
+    }
+  }
+
+  public setFirebaseConfig(config: Partial<FirebaseRuntimeConfig> | null): void {
+    this.firebaseConfig = config;
+    if (config?.cloudModelId) {
+      this.selectedCloudModel = validateSupportedCloudModel(config.cloudModelId);
+    }
+    if (isLiveFirebaseConfig(config)) {
+      this.appCheckStatus = config.customAppCheckTokenProvider
+        ? "CUSTOM_PROVIDER_READY"
+        : config.recaptchaEnterpriseSiteKey
+          ? "RECAPTCHA_ENTERPRISE_READY"
+          : config.debugAppCheckToken
+            ? "DEBUG_PROVIDER_READY"
+            : "NOT_INITIALIZED";
+    } else {
+      this.appCheckStatus = "LOCAL_ONLY_NO_CLOUD";
+    }
+  }
+
+  public getObservedFirebaseTelemetry(): ObservedFirebaseTelemetry {
+    return {
+      sdkVersion: CLAUSEGUARD_FIREBASE_SDK_VERSION,
+      hasLiveCloudConfig: isLiveFirebaseConfig(this.firebaseConfig),
+      appCheckStatus: this.appCheckStatus,
+      initSequence: [...this.firebaseInitSequence],
+      lastLocalInferenceSource: this.lastLocalSdkSource,
+      lastCloudInferenceSource: this.lastCloudSdkSource,
+      activeCloudModel: this.selectedCloudModel,
+      downloadProgressPct: this.downloadProgressPct,
+      remoteConfig: this.remoteConfigSnapshot,
+    };
+  }
+
   public async refreshReadiness(): Promise<void> {
     const probe = await probeNanoReadiness();
     this.readinessState = probe.state;
@@ -126,6 +203,31 @@ export class ClauseGuardSessionController {
     if (probe.state === "DEGRADED_DETERMINISTIC_SAFE" && this.privacyMode === "LOCAL_ONLY") {
       this.privacyMode = "DEGRADED_DETERMINISTIC_SAFE";
     }
+  }
+
+  public async initializeOnDeviceModel(): Promise<{ status: string; detail: string }> {
+    this.downloadProgressPct = 0;
+    const res = await initializeOnDeviceModelWithGesture((pct) => {
+      this.downloadProgressPct = pct;
+    }, this.firebaseConfig);
+    await this.refreshReadiness();
+    if (res.status !== "READY") {
+      this.warnings.push(res.detail);
+    }
+    return res;
+  }
+
+  public async syncRemoteConfigSafely(): Promise<RemoteConfigRuntimeSnapshot> {
+    if (!isLiveFirebaseConfig(this.firebaseConfig)) {
+      return this.remoteConfigSnapshot;
+    }
+    const handle = await ensureCloudFirebaseRuntime(this.firebaseConfig);
+    this.appCheckStatus = handle.appCheckStatus;
+    this.firebaseInitSequence = [...handle.initSequence];
+    const snap = await fetchGuardrailedRemoteConfig(handle.app);
+    this.remoteConfigSnapshot = snap;
+    this.selectedCloudModel = snap.cloudModelName;
+    return snap;
   }
 
   public async ingestFileOrText(input: {
@@ -137,6 +239,7 @@ export class ClauseGuardSessionController {
     this.warnings = [];
     this.findings = [];
     this.cloudInferenceSource = null;
+    this.lastCloudSdkSource = null;
     this.approvalMachine.transitionTo("RAW_INGESTED");
 
     let doc: NormalizedDocument;
@@ -188,14 +291,16 @@ export class ClauseGuardSessionController {
     );
     this.bindings = graphOut.bindings;
 
-    // 3. Token-bounded sequential ONLY_ON_DEVICE Chrome Nano discovery
+    // 3. Token-bounded sequential Firebase AI Logic ONLY_ON_DEVICE discovery
     const chunks = splitIntoTokenBoundedChunks(norm);
     const nanoEntities: DetectedEntity[] = [];
     let usedLiveNano = false;
 
     for (const chunk of chunks) {
-      const res = await runChunkOnDeviceNano(chunk, "ONLY_ON_DEVICE");
-      if (res.inferenceSource === "ON_DEVICE_BROWSER_PROMPT_API") {
+      const res = await runChunkOnDeviceNano(chunk, "ONLY_ON_DEVICE", {
+        firebaseConfig: this.firebaseConfig,
+      });
+      if (res.inferenceSource === "FIREBASE_AI_LOGIC_ON_DEVICE") {
         usedLiveNano = true;
       }
       if (res.warning) {
@@ -219,17 +324,18 @@ export class ClauseGuardSessionController {
           normEnd: ve.normEnd,
           source: "NANO_ON_DEVICE",
           confidence: ve.confidence,
-          rationale: "Discovered locally via ONLY_ON_DEVICE Gemini Nano (requires human confirmation)",
+          rationale: "Discovered locally via Firebase AI Logic ONLY_ON_DEVICE (requires human confirmation)",
           reviewStatus: "PENDING_REVIEW",
         });
       }
     }
 
+    this.lastLocalSdkSource = usedLiveNano ? "on_device" : "DEGRADED_DETERMINISTIC_SAFE";
     this.localInferenceSource = usedLiveNano
-      ? "ON_DEVICE_BROWSER_PROMPT_API + DETERMINISTIC_L1 + ARCH-RET-4.1"
-      : "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Nano weights unavailable)";
+      ? "FIREBASE_AI_LOGIC_ONLY_ON_DEVICE (on_device) + DETERMINISTIC_L1 + ARCH-RET-4.1"
+      : "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Firebase ONLY_ON_DEVICE weights unavailable)";
 
-    // Merge candidates while deduplicating identical intervals (keeping higher-precedence deterministic/graph match)
+    // Merge candidates while deduplicating identical intervals
     const combined: DetectedEntity[] = [...l1, ...graphOut.entities];
     for (const ne of nanoEntities) {
       const overlaps = combined.some(
@@ -330,10 +436,10 @@ export class ClauseGuardSessionController {
   }
 
   public async runApprovedCloudAnalysis(opts: {
-    cloudEndpointUrl?: string;
-    geminiApiKey?: string;
     allowSimulatedCloud?: boolean;
-  }): Promise<ContractFinding[]> {
+    modelId?: string;
+    firebaseConfig?: Partial<FirebaseRuntimeConfig> | null;
+  } = {}): Promise<ContractFinding[]> {
     if (!this.redaction) {
       throw new PrivacyBoundaryError("ERR_NO_PAYLOAD", "Load and redact a document before cloud analysis.");
     }
@@ -344,20 +450,38 @@ export class ClauseGuardSessionController {
       );
     }
     const snap = this.approvalMachine.getSnapshot();
+    const effectiveConfig = opts.firebaseConfig ?? this.firebaseConfig;
     const res = await analyzeApprovedPayload(snap, this.redaction, {
       cloudMode: "ONLY_IN_CLOUD",
-      cloudEndpointUrl: opts.cloudEndpointUrl,
-      geminiApiKey: opts.geminiApiKey,
+      firebaseConfig: effectiveConfig,
+      modelId: opts.modelId ?? this.selectedCloudModel,
+      playbookId: this.remoteConfigSnapshot.playbookId,
       allowLocalSimulatedCloud: opts.allowSimulatedCloud ?? true,
+      onFirebaseTelemetry: (info) => {
+        this.appCheckStatus = info.appCheckStatus;
+        this.firebaseInitSequence = info.initSequence;
+      },
     });
     this.findings = res;
-    this.cloudInferenceSource = res[0]?.analysisSource ?? "ONLY_IN_CLOUD_GEMINI";
+    const primary = res[0];
+    if (primary?.analysisSource === "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD") {
+      this.lastCloudSdkSource = "in_cloud";
+      this.cloudInferenceSource = `FIREBASE_AI_LOGIC_ONLY_IN_CLOUD (${primary.modelUsed ?? this.selectedCloudModel}, inferenceSource=in_cloud)`;
+    } else {
+      this.lastCloudSdkSource = "SIMULATED_CLOUD_SYNTHESIS";
+      this.cloudInferenceSource = "SIMULATED_CLOUD_SYNTHESIS (0 external packets)";
+    }
     this.approvalMachine.transitionTo("REHYDRATED");
     return res;
   }
 
   public async runOfflineLocalClauseTriage(clauseText: string): Promise<ContractFinding> {
-    const finding = await runLocalSingleClauseTriage(clauseText, "ONLY_ON_DEVICE");
+    const finding = await runLocalSingleClauseTriage(clauseText, "ONLY_ON_DEVICE", {
+      firebaseConfig: this.firebaseConfig,
+    });
+    if (finding.observedInferenceSource === "on_device") {
+      this.lastLocalSdkSource = "on_device";
+    }
     this.findings = [finding, ...this.findings];
     return finding;
   }
@@ -410,6 +534,7 @@ export class ClauseGuardSessionController {
       entities: this.entities,
       localInferenceSource: this.localInferenceSource,
       cloudInferenceSource: this.cloudInferenceSource,
+      appCheckStatus: this.appCheckStatus,
     });
   }
 
@@ -422,9 +547,14 @@ export class ClauseGuardSessionController {
     this.findings = [];
     this.warnings = [];
     this.cloudInferenceSource = null;
+    this.lastCloudSdkSource = null;
+    this.firebaseConfig = readFirebaseEnvConfig();
+    this.appCheckStatus = isLiveFirebaseConfig(this.firebaseConfig) ? "NOT_INITIALIZED" : "LOCAL_ONLY_NO_CLOUD";
+    this.firebaseInitSequence = [];
+    await resetCloudFirebaseRuntime();
     this.approvalMachine.transitionTo("EMPTY");
     this.sessionId = `CG-${Date.now()}`;
     await purgeAllWorkspaceStorage();
-    SafeLogger.info("Purge", "Cleared session RAM state and deleted IndexedDB workspace store.");
+    SafeLogger.info("Purge", "Cleared session RAM state, ephemeral Firebase cloud handle, and IndexedDB store.");
   }
 }

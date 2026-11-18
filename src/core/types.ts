@@ -7,6 +7,11 @@
 export type LocalInferenceMode = "ONLY_ON_DEVICE";
 export type CloudInferenceMode = "ONLY_IN_CLOUD";
 
+export type SupportedFirebaseCloudModel =
+  | "gemini-3.5-flash-lite"
+  | "gemini-3.8-flash"
+  | "gemini-4-hydrogen";
+
 export type PrivacyMode =
   | "LOCAL_ONLY"
   | "HYBRID_ANONYMIZED"
@@ -71,6 +76,50 @@ export type ApprovalState =
   | "STALE_APPROVAL_INVALIDATED"
   | "CLOUD_ANALYZED"
   | "REHYDRATED";
+
+export type AppCheckStatus =
+  | "NOT_INITIALIZED"
+  | "LOCAL_ONLY_NO_CLOUD"
+  | "DEBUG_PROVIDER_READY"
+  | "RECAPTCHA_ENTERPRISE_READY"
+  | "CUSTOM_PROVIDER_READY"
+  | "ATTESTATION_FAILED";
+
+export interface FirebaseRuntimeConfig {
+  apiKey: string;
+  authDomain?: string;
+  projectId: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  appId: string;
+  recaptchaEnterpriseSiteKey?: string;
+  debugAppCheckToken?: boolean | string;
+  useLimitedUseAppCheckTokens?: boolean;
+  cloudModelId?: string;
+  firebaseBaseUrl?: string;
+  customAppCheckTokenProvider?: () => Promise<{ token: string; expireTimeMillis: number }>;
+}
+
+export interface RemoteConfigRuntimeSnapshot {
+  source: "DEFAULT_LOCAL" | "FIREBASE_REMOTE_CONFIG";
+  cloudModelName: SupportedFirebaseCloudModel;
+  playbookId: string;
+  maxCloudOutputTokens: number;
+  lastFetchedAtUtc: string | null;
+  safetyInvariantsLocked: true;
+}
+
+export interface ObservedFirebaseTelemetry {
+  sdkVersion: string;
+  hasLiveCloudConfig: boolean;
+  appCheckStatus: AppCheckStatus;
+  initSequence: string[];
+  lastLocalInferenceSource: "on_device" | "DEGRADED_DETERMINISTIC_SAFE" | null;
+  lastCloudInferenceSource: "in_cloud" | "SIMULATED_CLOUD_SYNTHESIS" | null;
+  activeCloudModel: SupportedFirebaseCloudModel;
+  downloadProgressPct: number | null;
+  remoteConfig: RemoteConfigRuntimeSnapshot;
+}
 
 export interface SourceMapSegment {
   normStart: number;
@@ -162,7 +211,8 @@ export interface TextChunk {
 
 export interface NanoChunkResult {
   chunkIndex: number;
-  inferenceSource: "ON_DEVICE_BROWSER_PROMPT_API" | "DEGRADED_DETERMINISTIC_SAFE";
+  inferenceSource: "FIREBASE_AI_LOGIC_ON_DEVICE" | "DEGRADED_DETERMINISTIC_SAFE";
+  sdkInferenceSource?: "on_device";
   verifiedEntities: Array<{
     surface: string;
     category: EntityCategory;
@@ -184,7 +234,13 @@ export interface ContractFinding {
   rehydratedExcerpt: string;
   unmappedTokens: string[];
   rationale: string;
-  analysisSource: "ONLY_IN_CLOUD_GEMINI" | "SIMULATED_CLOUD_SYNTHESIS" | "ONLY_ON_DEVICE_LOCAL_TRIAGE" | "DETERMINISTIC_LOCAL_TRIAGE";
+  analysisSource:
+    | "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD"
+    | "SIMULATED_CLOUD_SYNTHESIS"
+    | "FIREBASE_AI_LOGIC_ONLY_ON_DEVICE_TRIAGE"
+    | "DETERMINISTIC_LOCAL_TRIAGE";
+  observedInferenceSource?: "on_device" | "in_cloud";
+  modelUsed?: string;
 }
 
 /** 16-field PrivacyProcessingAndEgressReport matching IFC v3.0.0 + Section 16 disclaimer */

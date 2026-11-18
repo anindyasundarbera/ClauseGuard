@@ -36,10 +36,40 @@ body {
 .subtitle { margin: 0.25rem 0 0; font-size: 0.9rem; color: #cbd5e1; }
 .readiness-box {
   background: #1e293b;
-  padding: 0.55rem 0.9rem;
+  padding: 0.6rem 0.9rem;
   border-radius: 6px;
   border: 1px solid #475569;
   font-size: 0.85rem;
+  max-width: 520px;
+}
+.readiness-box .small-note { color: #cbd5e1; }
+.readiness-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  flex-wrap: wrap;
+}
+.btn-compact {
+  font-size: 0.78rem;
+  padding: 0.28rem 0.55rem;
+}
+
+.telemetry-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 0.45rem 1.5rem;
+  font-size: 0.8rem;
+  border-top: 1px solid #334155;
+}
+.telemetry-strip code {
+  background: #0f172a;
+  color: #93c5fd;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
 }
 
 .disclosure-banner {
@@ -75,11 +105,17 @@ h3 { margin: 1.1rem 0 0.5rem; font-size: 0.98rem; border-top: 1px solid #e5e7eb;
   align-items: center;
 }
 
-button, .file-btn, select, input[type="text"], input[type="password"] {
+button, .file-btn, select, input[type="text"], input[type="password"], textarea {
   font-size: 0.86rem;
   padding: 0.45rem 0.7rem;
   border-radius: 5px;
   border: 1px solid var(--border);
+}
+textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
 }
 .file-btn, button { cursor: pointer; font-weight: 600; }
 .file-btn { background: #e2e8f0; color: #0f172a; display: inline-block; }
@@ -88,6 +124,25 @@ button, .file-btn, select, input[type="text"], input[type="password"] {
 .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-secondary { background: #f3f4f6; color: #111827; }
 .btn-danger { background: var(--danger); color: #ffffff; border-color: var(--danger); }
+
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.firebase-drawer {
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.85rem;
+}
+.firebase-drawer summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
 
 .badge {
   display: inline-block;

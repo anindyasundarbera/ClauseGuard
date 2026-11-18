@@ -13,8 +13,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "firebase": "13.4.0",
     "jszip": "^3.10.1",
     "pdfjs-dist": "^6.5.438"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

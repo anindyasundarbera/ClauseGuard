@@ -1,21 +1,24 @@
+import { PrivacyBoundaryError } from "../errors.ts";
+import {
+  DEFAULT_CLOUD_MODEL_ID,
+  ensureCloudFirebaseRuntime,
+  InferenceSource,
+  isLiveFirebaseConfig,
+  validateSupportedCloudModel,
+} from "../firebase/firebaseClient.ts";
 import { sha256Hex } from "../ingestion/normalizer.ts";
 import { rehydrateText } from "../redaction/redactor.ts";
 import type {
+  AppCheckStatus,
   ApprovalState,
   CloudInferenceMode,
   ContractFinding,
+  FirebaseRuntimeConfig,
   HumanApprovedPayload,
   RedactionResult,
 } from "../types.ts";
 
-export class PrivacyBoundaryError extends Error {
-  public readonly code: string;
-  constructor(code: string, message: string) {
-    super(`${code}: ${message}`);
-    this.code = code;
-    this.name = "PrivacyBoundaryError";
-  }
-}
+export { PrivacyBoundaryError };
 
 export interface ApprovalRecord {
   state: ApprovalState;
@@ -143,16 +146,86 @@ export function runZeroCanaryPreflight(redaction: RedactionResult): {
 }
 
 export interface CloudDispatchOptions {
-  cloudEndpointUrl?: string;
-  geminiApiKey?: string;
-  modelId?: string;
   cloudMode: CloudInferenceMode;
+  firebaseConfig?: Partial<FirebaseRuntimeConfig> | null;
+  modelId?: string;
+  playbookId?: string;
   allowLocalSimulatedCloud?: boolean;
-  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  onFirebaseTelemetry?: (info: {
+    appCheckStatus: AppCheckStatus;
+    initSequence: string[];
+    modelUsed: string;
+  }) => void;
+}
+
+const VALID_SEVERITIES = new Set(["HIGH", "MEDIUM", "LOW"]);
+
+function validateAndNormalizeCloudFindings(
+  rawText: string,
+  tokenToSurface: Record<string, string>,
+  modelUsed: string
+): ContractFinding[] {
+  const cleaned = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  const parsed = JSON.parse(cleaned) as { findings?: unknown };
+  if (!parsed || !Array.isArray(parsed.findings)) {
+    throw new PrivacyBoundaryError(
+      "ERR_INVALID_CLOUD_SCHEMA",
+      "Firebase AI Logic cloud response did not match required {findings: [...]} JSON schema."
+    );
+  }
+  if (parsed.findings.length > 25) {
+    throw new PrivacyBoundaryError(
+      "ERR_CLOUD_RESPONSE_OVERSIZED",
+      "Cloud response exceeded maximum 25 findings safety cap."
+    );
+  }
+
+  return parsed.findings.map((item, idx) => {
+    const f = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    const rawSev = typeof f.severity === "string" ? f.severity.toUpperCase() : "MEDIUM";
+    const severity = (VALID_SEVERITIES.has(rawSev) ? rawSev : "MEDIUM") as "HIGH" | "MEDIUM" | "LOW";
+    const title =
+      typeof f.title === "string" && f.title.trim().length > 0
+        ? f.title.trim().slice(0, 180)
+        : "Cross-Clause Cloud Risk Finding";
+    const clauseRefs = Array.isArray(f.clauseRefs)
+      ? f.clauseRefs.filter((r): r is string => typeof r === "string").slice(0, 10)
+      : ["Cloud Analysis"];
+    const anon = typeof f.anonymizedExcerpt === "string" ? f.anonymizedExcerpt.slice(0, 800) : "";
+    const rationaleRaw = typeof f.rationale === "string" ? f.rationale.slice(0, 1600) : "";
+
+    const rehExcerpt = rehydrateText(anon, tokenToSurface);
+    const rehRationale = rehydrateText(rationaleRaw, tokenToSurface);
+    const combinedUnmapped = Array.from(
+      new Set([...rehExcerpt.unmappedTokens, ...rehRationale.unmappedTokens])
+    );
+
+    return {
+      findingId: `FIREBASE-CLD-${idx + 1}`,
+      severity,
+      title,
+      clauseRefs: clauseRefs.length > 0 ? clauseRefs : ["General Review"],
+      anonymizedExcerpt: anon,
+      rehydratedExcerpt: rehExcerpt.rehydratedText,
+      unmappedTokens: combinedUnmapped,
+      rationale: rehRationale.rehydratedText,
+      analysisSource: "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD",
+      observedInferenceSource: "in_cloud",
+      modelUsed,
+    };
+  });
 }
 
 /**
- * Analyze the exact human-approved sanitized payload via ONLY_IN_CLOUD.
+ * Analyze the exact human-approved sanitized payload strictly via Firebase AI Logic
+ * `InferenceMode.ONLY_IN_CLOUD` + App Check (or explicitly labeled local simulation when
+ * no Firebase project config is present).
  * Refuses to execute unless ApprovalRecord is HUMAN_APPROVED_FOR_CLOUD and
  * live SHA-256 matches approvedPayloadSha256.
  */
@@ -190,94 +263,64 @@ export async function analyzeApprovedPayload(
 
   const sanitizedText: string = approval.approvedBrandPayload;
 
-  // Path 1: Custom cloud endpoint (used in Playwright CDP test or proxy backend)
-  if (opts.cloudEndpointUrl) {
-    const fn = opts.fetchImpl ?? fetch;
-    const res = await fn(opts.cloudEndpointUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        payloadSha256: approval.approvedPayloadSha256,
-        sanitizedPayload: sanitizedText,
-        playbook: "COMMERCIAL_MSA_CONTRADICTION",
-      }),
-    });
-    if (!res.ok) {
-      throw new PrivacyBoundaryError("ERR_CLOUD_HTTP", `Cloud endpoint returned HTTP ${res.status}`);
+  // Path 1: Official Firebase AI Logic SDK (ONLY_IN_CLOUD + App Check)
+  const hasFirebase = isLiveFirebaseConfig(opts.firebaseConfig);
+  if (hasFirebase) {
+    const requestedModel = opts.modelId ?? opts.firebaseConfig?.cloudModelId ?? DEFAULT_CLOUD_MODEL_ID;
+    const validatedModel = validateSupportedCloudModel(requestedModel);
+    const handle = await ensureCloudFirebaseRuntime(opts.firebaseConfig as FirebaseRuntimeConfig);
+
+    const attestation = await handle.verifyAppCheckAttestation();
+    if (!attestation.ok) {
+      throw new PrivacyBoundaryError("ERR_APP_CHECK_ATTESTATION_FAILED", attestation.detail);
     }
-    const json = (await res.json()) as { findings?: Array<Partial<ContractFinding>> };
-    return (json.findings ?? []).map((f, idx) => {
-      const anon = f.anonymizedExcerpt ?? sanitizedText.slice(0, 180);
-      const reh = rehydrateText(anon, currentRedaction.tokenToSurface);
-      return {
-        findingId: f.findingId ?? `CLD-${idx + 1}`,
-        severity: f.severity ?? "HIGH",
-        title: f.title ?? "Cross-Clause Cloud Risk Finding",
-        clauseRefs: f.clauseRefs ?? ["Cloud Analysis"],
-        anonymizedExcerpt: anon,
-        rehydratedExcerpt: reh.rehydratedText,
-        unmappedTokens: reh.unmappedTokens,
-        rationale: rehydrateText(f.rationale ?? "", currentRedaction.tokenToSurface).rehydratedText,
-        analysisSource: "ONLY_IN_CLOUD_GEMINI",
-      };
+
+    // Re-verify preflight right before network dispatch
+    const finalPreflight = runZeroCanaryPreflight(currentRedaction);
+    if (!finalPreflight.passed) {
+      throw new PrivacyBoundaryError(
+        "ERR_ZERO_CANARY_FAILED",
+        `Blocked immediately prior to Firebase AI Logic call: ${finalPreflight.leaks.join("; ")}`
+      );
+    }
+
+    const cloudModel = handle.createCloudModel(validatedModel);
+    opts.onFirebaseTelemetry?.({
+      appCheckStatus: handle.appCheckStatus,
+      initSequence: handle.initSequence,
+      modelUsed: validatedModel,
     });
+
+    const playbook = opts.playbookId ?? "COMMERCIAL_MSA_CONTRADICTION";
+    const prompt =
+      `Playbook: ${playbook}\n` +
+      `Payload-SHA256: ${approval.approvedPayloadSha256}\n` +
+      `Analyze ONLY the sanitized contract text below for cross-clause risk contradictions:\n\n${sanitizedText}`;
+
+    const result = await cloudModel.generateContent(prompt, {
+      signal: opts.signal,
+      timeout: opts.timeoutMs ?? 30_000,
+    });
+
+    if (result.response.inferenceSource !== InferenceSource.IN_CLOUD) {
+      throw new PrivacyBoundaryError(
+        "ERR_UNEXPECTED_INFERENCE_SOURCE",
+        `Expected inferenceSource 'in_cloud' from ONLY_IN_CLOUD model, observed '${String(result.response.inferenceSource)}'.`
+      );
+    }
+
+    return validateAndNormalizeCloudFindings(
+      result.response.text(),
+      currentRedaction.tokenToSurface,
+      validatedModel
+    );
   }
 
-  // Path 2: Direct Google Gemini Developer API (if user explicitly supplied an API key)
-  if (opts.geminiApiKey) {
-    const model = opts.modelId ?? "gemini-2.5-flash";
-    const fn = opts.fetchImpl ?? fetch;
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    const res = await fn(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": opts.geminiApiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `Analyze this sanitized contract for cross-clause liability caps, carve-outs, or contradictory definitions. Preserve exact bracketed placeholders like [ORG_CLIENT_1] verbatim. Return JSON {findings:[{severity:'HIGH'|'MEDIUM'|'LOW', title, clauseRefs:string[], anonymizedExcerpt, rationale}]}.\n\n${sanitizedText}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    });
-    if (!res.ok) {
-      throw new PrivacyBoundaryError("ERR_GEMINI_API", `Gemini API failed with HTTP ${res.status}`);
-    }
-    const body = (await res.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const rawTxt = body.candidates?.[0]?.content?.parts?.[0]?.text ?? '{"findings":[]}';
-    const parsed = JSON.parse(rawTxt) as { findings?: Array<Partial<ContractFinding>> };
-    return (parsed.findings ?? []).map((f, idx) => {
-      const anon = f.anonymizedExcerpt ?? "";
-      const reh = rehydrateText(anon, currentRedaction.tokenToSurface);
-      return {
-        findingId: `GEMINI-${idx + 1}`,
-        severity: f.severity ?? "MEDIUM",
-        title: f.title ?? "Cross-Clause Finding",
-        clauseRefs: f.clauseRefs ?? [],
-        anonymizedExcerpt: anon,
-        rehydratedExcerpt: reh.rehydratedText,
-        unmappedTokens: reh.unmappedTokens,
-        rationale: rehydrateText(f.rationale ?? "", currentRedaction.tokenToSurface).rehydratedText,
-        analysisSource: "ONLY_IN_CLOUD_GEMINI",
-      };
-    });
-  }
-
-  // Path 3: Explicitly labeled local simulated cloud cross-clause analyzer (0 external packets)
+  // Path 2: Explicitly labeled local simulated cloud cross-clause analyzer (0 external packets)
   if (!opts.allowLocalSimulatedCloud) {
     throw new PrivacyBoundaryError(
-      "ERR_NO_CLOUD_ENDPOINT",
-      "No cloud API key or endpoint configured. Enable simulated synthesis mode or provide a Gemini API key."
+      "ERR_NO_FIREBASE_CLOUD_CONFIG",
+      "No Firebase Web project configuration found. Configure Firebase + App Check or enable labeled simulated synthesis mode."
     );
   }
 

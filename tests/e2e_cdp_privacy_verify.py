@@ -140,20 +140,31 @@ def start_static_and_cloud_servers(cloud_log: list[dict[str, Any]], fail_next: l
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "Content-Type, x-goog-api-client, x-goog-api-key, X-Firebase-AppCheck, X-Firebase-Appid",
+            )
             self.end_headers()
 
         def do_POST(self) -> None:  # noqa: N802
             length = int(self.headers.get("Content-Length", "0"))
             raw_body = self.rfile.read(length).decode("utf-8", errors="replace")
+            headers_lower = {k.lower(): v for k, v in self.headers.items()}
             cloud_log.append({
                 "path": self.path,
+                "headers": headers_lower,
                 "body": raw_body,
                 "ts": datetime.now(timezone.utc).isoformat(),
             })
             if fail_next and fail_next[0]:
                 fail_next[0] = False
-                err = json.dumps({"error": "Simulated transient HTTP 500"}).encode("utf-8")
+                err = json.dumps({
+                    "error": {
+                        "code": 500,
+                        "message": "Simulated transient HTTP 500",
+                        "status": "INTERNAL",
+                    }
+                }).encode("utf-8")
                 self.send_response(500)
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Content-Type", "application/json")
@@ -163,7 +174,13 @@ def start_static_and_cloud_servers(cloud_log: list[dict[str, Any]], fail_next: l
                 return
 
             parsed = json.loads(raw_body)
-            sanitized = parsed.get("sanitizedPayload", "")
+            contents = parsed.get("contents") or []
+            user_prompt = ""
+            if contents and isinstance(contents, list):
+                parts = contents[0].get("parts") or []
+                if parts and isinstance(parts, list):
+                    user_prompt = str(parts[0].get("text", ""))
+            sanitized = user_prompt.split("\n\n", 1)[1] if "\n\n" in user_prompt else parsed.get("sanitizedPayload", user_prompt)
             first_tok = "[ORG_CLIENT_1]"
             for tok in ("[ORG_CLIENT_1]", "[ORG_PARTY_1]", "[CAP_1M_PLUS_1]"):
                 if tok in sanitized:
@@ -172,16 +189,26 @@ def start_static_and_cloud_servers(cloud_log: list[dict[str, Any]], fail_next: l
             resp_obj = {
                 "findings": [
                     {
-                        "findingId": "MOCK-CLOUD-1",
                         "severity": "HIGH",
                         "title": "Clause 14.1 Liability Cap vs Clause 9.3 Uncapped Carve-Out",
                         "clauseRefs": ["Clause 14.1", "Clause 9.3"],
                         "anonymizedExcerpt": f"{first_tok} cap vs Clause 9.3 confidentiality carve-out and forged [ORG_CLIENT_999].",
-                        "rationale": f"Cloud endpoint analyzed ONLY sanitized payload for {first_tok}.",
+                        "rationale": f"Firebase AI Logic ONLY_IN_CLOUD analyzed ONLY sanitized payload for {first_tok}.",
                     }
                 ]
             }
-            resp = json.dumps(resp_obj).encode("utf-8")
+            gemini_envelope = {
+                "candidates": [
+                    {
+                        "content": {
+                            "role": "model",
+                            "parts": [{"text": json.dumps(resp_obj)}],
+                        },
+                        "finishReason": "STOP",
+                    }
+                ]
+            }
+            resp = json.dumps(gemini_envelope).encode("utf-8")
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Content-Type", "application/json")
@@ -212,7 +239,7 @@ def run_verification() -> dict[str, Any]:
     fail_next = [False]
     app_srv, cloud_srv = start_static_and_cloud_servers(cloud_log, fail_next)
     app_url = f"http://localhost:{app_srv.server_address[1]}/"
-    cloud_url = f"http://127.0.0.1:{cloud_srv.server_address[1]}/api/mock-cloud-analyze"
+    cloud_url = f"http://127.0.0.1:{cloud_srv.server_address[1]}"
 
     cdp_requests: list[dict[str, Any]] = []
     console_messages: list[str] = []
@@ -283,32 +310,64 @@ def run_verification() -> dict[str, Any]:
             approved_sha = page.text_content('[data-testid="payload-sha"]')
             approved_preview = page.text_content('[data-testid="sanitized-preview"]') or ""
 
-            # Configure local mock cloud receiver URL on window and click the real UI Analyze button
-            page.evaluate("(u) => { window.__clauseguardCloudUrl = u; }", cloud_url)
+            # Configure @firebase/ai + App Check runtime on controller pointing to local mock Gemini wire endpoint
+            page.evaluate(
+                """(baseUrl) => {
+                    window.__clauseguardController.setFirebaseConfig({
+                        apiKey: "cdp-test-key-local-only",
+                        projectId: "cdp-test-proj",
+                        appId: "1:000000000000:web:cdptest",
+                        firebaseBaseUrl: baseUrl,
+                        cloudModelId: "gemini-3.5-flash-lite",
+                        customAppCheckTokenProvider: async () => ({
+                            token: "cdp-appcheck-test-token",
+                            expireTimeMillis: Date.now() + 3600000,
+                        }),
+                    });
+                }""",
+                cloud_url,
+            )
             page.click('[data-testid="btn-analyze-cloud"]')
-            time.sleep(0.4)
+            time.sleep(0.5)
             page.screenshot(path=str(DEMO_DIR / "02_approved_cloud_and_rehydration.png"))
             cloud_res = page.evaluate("window.__clauseguardController.findings")
 
-            req_body_json = json.loads(cloud_log[-1]["body"]) if cloud_log else {}
-            sent_payload = req_body_json.get("sanitizedPayload", "")
+            req_entry = cloud_log[-1] if cloud_log else {}
+            req_body_json = json.loads(req_entry["body"]) if req_entry.get("body") else {}
+            req_contents = req_body_json.get("contents") or []
+            req_user_text = (
+                str(req_contents[0]["parts"][0].get("text", ""))
+                if req_contents and req_contents[0].get("parts")
+                else ""
+            )
+            sent_payload = req_user_text.split("\n\n", 1)[1] if "\n\n" in req_user_text else req_user_text
             sent_sha = hashlib.sha256(sent_payload.encode("utf-8")).hexdigest()
+            app_check_header = req_entry.get("headers", {}).get("x-firebase-appcheck", "")
             scenarios["03_approved_cloud_exact_sha_match"] = {
                 "status": (
                     "PASS"
                     if len(cloud_log) == 1
                     and approved_state == "HUMAN_APPROVED_FOR_CLOUD"
+                    and ":generateContent" in req_entry.get("path", "")
+                    and app_check_header == "cdp-appcheck-test-token"
                     and sent_sha == approved_sha
                     and sent_payload == approved_preview
-                    and len(check_canary_leaks([cloud_log[-1]["body"]])) == 0
+                    and len(cloud_res) == 1
+                    and cloud_res[0].get("analysisSource") == "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD"
+                    and cloud_res[0].get("observedInferenceSource") == "in_cloud"
+                    and len(check_canary_leaks([req_entry["body"]])) == 0
                     and "[UNMAPPED_TOKEN:ORG_CLIENT_999]" in cloud_res[0]["rehydratedExcerpt"]
                     else "FAIL"
                 ),
                 "approved_sha": approved_sha,
                 "sent_sha": sent_sha,
-                "raw_canaries_in_cloud_post": check_canary_leaks([cloud_log[-1]["body"]]),
-                "rehydrated_contains_meridian": "Meridian Precision Robotics GmbH" in cloud_res[0]["rehydratedExcerpt"],
-                "unmapped_token_flagged": "[UNMAPPED_TOKEN:ORG_CLIENT_999]" in cloud_res[0]["rehydratedExcerpt"],
+                "firebase_wire_path": req_entry.get("path", ""),
+                "app_check_header_present": app_check_header == "cdp-appcheck-test-token",
+                "analysis_source": cloud_res[0].get("analysisSource") if cloud_res else None,
+                "observed_inference_source": cloud_res[0].get("observedInferenceSource") if cloud_res else None,
+                "raw_canaries_in_cloud_post": check_canary_leaks([req_entry.get("body", "")]),
+                "rehydrated_contains_meridian": "Meridian Precision Robotics GmbH" in cloud_res[0]["rehydratedExcerpt"] if cloud_res else False,
+                "unmapped_token_flagged": "[UNMAPPED_TOKEN:ORG_CLIENT_999]" in cloud_res[0]["rehydratedExcerpt"] if cloud_res else False,
             }
 
             # 9: Stale approval invalidation when entity toggled after approval
@@ -316,14 +375,14 @@ def run_verification() -> dict[str, Any]:
             first_reject_btn.click()
             time.sleep(0.2)
             stale_state = page.text_content('[data-testid="approval-state"]')
-            stale_blocked = page.evaluate("""async (url) => {
+            stale_blocked = page.evaluate("""async () => {
                 try {
-                    await window.__clauseguardController.runApprovedCloudAnalysis({ cloudEndpointUrl: url });
+                    await window.__clauseguardController.runApprovedCloudAnalysis({ allowSimulatedCloud: false });
                     return { blocked: false };
                 } catch (e) {
                     return { blocked: true, error: String(e) };
                 }
-            }""", cloud_url)
+            }""")
             scenarios["04_stale_approval_invalidation"] = {
                 "status": "PASS" if stale_state == "STALE_APPROVAL_INVALIDATED" and stale_blocked["blocked"] and len(cloud_log) == 1 else "FAIL",
                 "stale_state": stale_state,
@@ -338,18 +397,24 @@ def run_verification() -> dict[str, Any]:
             page.check('[data-testid="chk-explicit-consent"]')
             page.click('[data-testid="btn-approve-payload"]')
             fail_next[0] = True
-            retry_res = page.evaluate("""async (url) => {
+            retry_res = page.evaluate("""async () => {
                 let firstErr = null;
                 try {
-                    await window.__clauseguardController.runApprovedCloudAnalysis({ cloudEndpointUrl: url });
+                    await window.__clauseguardController.runApprovedCloudAnalysis({ allowSimulatedCloud: false });
                 } catch (e) {
                     firstErr = String(e);
                 }
-                const secondOk = await window.__clauseguardController.runApprovedCloudAnalysis({ cloudEndpointUrl: url });
+                const secondOk = await window.__clauseguardController.runApprovedCloudAnalysis({ allowSimulatedCloud: false });
                 return { firstErr, secondCount: secondOk.length };
-            }""", cloud_url)
+            }""")
             scenarios["05_cloud_failure_and_retry"] = {
-                "status": "PASS" if "ERR_CLOUD_HTTP" in (retry_res.get("firstErr") or "") and retry_res["secondCount"] == 1 and len(check_canary_leaks([c["body"] for c in cloud_log])) == 0 else "FAIL",
+                "status": (
+                    "PASS"
+                    if ("500" in (retry_res.get("firstErr") or "") or "AI" in (retry_res.get("firstErr") or ""))
+                    and retry_res["secondCount"] == 1
+                    and len(check_canary_leaks([c["body"] for c in cloud_log])) == 0
+                    else "FAIL"
+                ),
                 "first_error": retry_res.get("firstErr"),
                 "cloud_calls_total": len(cloud_log),
                 "raw_canaries_across_all_posts": check_canary_leaks([c["body"] for c in cloud_log]),
@@ -408,7 +473,12 @@ def run_verification() -> dict[str, Any]:
             post_offline_count = len(cdp_requests)
             ctx.set_offline(False)
             scenarios["08_offline_local_triage"] = {
-                "status": "PASS" if "LOCAL" in findings_txt and post_offline_count == pre_offline_count else "FAIL",
+                "status": (
+                    "PASS"
+                    if ("LOCAL" in findings_txt or "ON_DEVICE" in findings_txt)
+                    and post_offline_count == pre_offline_count
+                    else "FAIL"
+                ),
                 "new_requests_while_offline": post_offline_count - pre_offline_count,
             }
 
@@ -470,7 +540,7 @@ def run_verification() -> dict[str, Any]:
         "total_cdp_requests_observed": len(cdp_requests),
         "external_unexpected_requests": external_cdp,
         "local_mock_cloud_posts_observed": len(cloud_log),
-        "cloud_endpoint_scope_note": f"All {len(cloud_log)} cloud POST assertions hit local 127.0.0.1 mock receiver; live external Google Gemini API path was not exercised in automated CDP suite.",
+        "cloud_endpoint_scope_note": f"All {len(cloud_log)} cloud POST assertions hit local 127.0.0.1 mock @firebase/ai wire receiver (GoogleAIBackend + X-Firebase-AppCheck); live Google Gemini API path awaits human Enable API ToS click on clauseguard-hybrid-1c5e2.",
         "raw_canaries_in_cloud_posts": check_canary_leaks([c["body"] for c in cloud_log]),
         "raw_canaries_in_urls": url_leaks,
         "raw_canaries_in_console": console_leaks,
