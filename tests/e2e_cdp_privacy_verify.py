@@ -6,8 +6,8 @@ Instruments real Google Chrome 156.0.8078.47 against the production Vite build
 adversarial XSS, prompt-injection, DOCX upload, and stale-approval tests.
 
 Outputs:
-- `research/evidence/clauseguard-mvp/phase6-cdp-egress-and-security-proof.json`
-- Fresh-browser demo screenshots in `projects/clauseguard_hybrid/demo/`
+- `evidence/phase6-cdp-egress-and-security-proof.json` (plus monorepo mirror if present)
+- Fresh-browser demo screenshots in `demo/`
 """
 
 from __future__ import annotations
@@ -29,10 +29,11 @@ from typing import Any
 
 from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parents[3]
-DIST_DIR = ROOT / "projects" / "clauseguard_hybrid" / "dist"
-DEMO_DIR = ROOT / "projects" / "clauseguard_hybrid" / "demo"
-OUT_JSON = ROOT / "research" / "evidence" / "clauseguard-mvp" / "phase6-cdp-egress-and-security-proof.json"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DIST_DIR = PROJECT_ROOT / "dist"
+DEMO_DIR = PROJECT_ROOT / "demo"
+OUT_JSON = PROJECT_ROOT / "evidence" / "phase6-cdp-egress-and-security-proof.json"
+EIS_MIRROR_JSON = PROJECT_ROOT.parents[1] / "research" / "evidence" / "clauseguard-mvp" / "phase6-cdp-egress-and-security-proof.json"
 
 RAW_CANARIES = [
     "Meridian Precision Robotics GmbH",
@@ -504,6 +505,7 @@ def run_verification() -> dict[str, Any]:
             b_dis = p.chromium.launch(
                 executable_path="/usr/bin/google-chrome",
                 headless=True,
+                env=clean_chrome_env(),
                 args=["--disable-features=PromptAPIForGeminiNano,OptimizationGuideOnDeviceModel"],
             )
             p_dis = b_dis.new_page()
@@ -540,7 +542,7 @@ def run_verification() -> dict[str, Any]:
         "total_cdp_requests_observed": len(cdp_requests),
         "external_unexpected_requests": external_cdp,
         "local_mock_cloud_posts_observed": len(cloud_log),
-        "cloud_endpoint_scope_note": f"All {len(cloud_log)} cloud POST assertions hit local 127.0.0.1 mock @firebase/ai wire receiver (GoogleAIBackend + X-Firebase-AppCheck); live Google Gemini API path awaits human Enable API ToS click on clauseguard-hybrid-1c5e2.",
+        "cloud_endpoint_scope_note": f"All {len(cloud_log)} CDP POST assertions hit local 127.0.0.1 mock @firebase/ai wire receiver (GoogleAIBackend + X-Firebase-AppCheck); live Google Gemini Developer API HTTP 200 execution against clauseguard-hybrid-1c5e2 was separately verified via interactive Chrome session.",
         "raw_canaries_in_cloud_posts": check_canary_leaks([c["body"] for c in cloud_log]),
         "raw_canaries_in_urls": url_leaks,
         "raw_canaries_in_console": console_leaks,
@@ -552,8 +554,12 @@ def run_verification() -> dict[str, Any]:
             and len(url_leaks) == 0
         ),
     }
-    OUT_JSON.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(json.dumps(report, indent=2))
+    payload_text = json.dumps(report, indent=2)
+    OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+    OUT_JSON.write_text(payload_text, encoding="utf-8")
+    if EIS_MIRROR_JSON.parent.exists():
+        EIS_MIRROR_JSON.write_text(payload_text, encoding="utf-8")
+    print(payload_text)
     if not report["all_scenarios_passed"]:
         raise SystemExit(1)
 

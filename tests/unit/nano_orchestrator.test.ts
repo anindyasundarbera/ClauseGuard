@@ -4,6 +4,8 @@ import {
   initializeOnDeviceModelWithGesture,
   MAX_CHUNK_CHARS,
   MAX_CHUNK_TOKENS,
+  probeNanoReadiness,
+  resetNanoAdapterStateForTests,
   runChunkOnDeviceNano,
   runLocalSingleClauseTriage,
   splitIntoTokenBoundedChunks,
@@ -13,6 +15,7 @@ describe("Token-Bounded Chunker & Firebase AI Logic ONLY_ON_DEVICE Adapter", () 
   const originalLm = (globalThis as unknown as { LanguageModel?: unknown }).LanguageModel;
 
   afterEach(() => {
+    resetNanoAdapterStateForTests();
     if (originalLm === undefined) {
       delete (globalThis as unknown as { LanguageModel?: unknown }).LanguageModel;
     } else {
@@ -171,5 +174,34 @@ describe("Token-Bounded Chunker & Firebase AI Logic ONLY_ON_DEVICE Adapter", () 
     );
     expect(f.severity).toBe("HIGH");
     expect(f.analysisSource).toBe("DETERMINISTIC_LOCAL_TRIAGE");
+  });
+
+  it("rejects Chromium echo stub responses and fails closed to DEGRADED_DETERMINISTIC_SAFE without bogus entities", async () => {
+    (globalThis as unknown as { LanguageModel: unknown }).LanguageModel = {
+      availability: async () => "available",
+      create: async () => ({
+        prompt: async (contents: unknown) =>
+          `On-device model is not available in Chromium, this API is just echoing back the input:\n${JSON.stringify(contents)}`,
+        destroy: () => {},
+      }),
+    };
+
+    const initRes = await initializeOnDeviceModelWithGesture();
+    expect(initRes.status).toBe("UNAVAILABLE");
+    expect(initRes.detail).toContain("Chromium echo stub detected");
+
+    const readiness = await probeNanoReadiness();
+    expect(readiness.state).toBe("DEGRADED_DETERMINISTIC_SAFE");
+
+    const chunk = splitIntoTokenBoundedChunks("MASTER SERVICES AGREEMENT with Meridian Precision Robotics GmbH.")[0];
+    const chunkRes = await runChunkOnDeviceNano(chunk, "ONLY_ON_DEVICE");
+    expect(chunkRes.inferenceSource).toBe("DEGRADED_DETERMINISTIC_SAFE");
+    expect(chunkRes.verifiedEntities).toEqual([]);
+
+    const triageRes = await runLocalSingleClauseTriage(
+      "Cap is $1M excluding unlimited confidentiality carve-out.",
+      "ONLY_ON_DEVICE"
+    );
+    expect(triageRes.analysisSource).toBe("DETERMINISTIC_LOCAL_TRIAGE");
   });
 });

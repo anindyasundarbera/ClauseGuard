@@ -27,6 +27,7 @@
   </header>
 
   <section class="telemetry-strip" aria-label="Firebase AI Logic & App Check Runtime Status">
+    <span><strong>Firebase Project:</strong> <code id="firebase-project-badge" data-testid="firebase-project-badge">clauseguard-hybrid-1c5e2</code></span>
     <span><strong>SDK:</strong> <code id="firebase-sdk-badge">firebase@13.4.0 (@firebase/ai@3.1.0)</code></span>
     <span><strong>App Check:</strong> <code id="appcheck-status-badge" data-testid="appcheck-status-badge">LOCAL_ONLY_NO_CLOUD</code></span>
     <span><strong>Cloud Model:</strong> <code id="cloud-model-badge" data-testid="cloud-model-badge">gemini-3.5-flash-lite</code></span>
@@ -99,7 +100,7 @@
       <div class="approval-gate">
         <label class="consent-check">
           <input id="chk-explicit-consent" data-testid="chk-explicit-consent" type="checkbox" />
-          I have inspected the exact sanitized payload above and approve sending ONLY this anonymized text via Firebase AI Logic (<code>ONLY_IN_CLOUD</code>) for cross-clause risk synthesis.
+          <span>I have inspected the exact sanitized payload above and approve sending ONLY this anonymized text via Firebase AI Logic (<code>ONLY_IN_CLOUD</code>) for cross-clause risk synthesis.</span>
         </label>
 
         <div class="cloud-config-row">

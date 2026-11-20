@@ -38,6 +38,21 @@ export const SUPPORTED_FIREBASE_CLOUD_MODELS: readonly SupportedFirebaseCloudMod
   "gemini-4-hydrogen",
 ] as const;
 
+/**
+ * Public Firebase Web App client identifiers for ClauseGuard Hybrid (`clauseguard-hybrid-1c5e2`).
+ * Per Firebase & #BuildHybridAI guidance, public Web App config identifies the Firebase project
+ * (never include App Check debug token UUIDs or server credentials here).
+ */
+export const DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG: FirebaseRuntimeConfig = {
+  apiKey: "REDACTED-FIREBASE-WEB-API-KEY",
+  authDomain: "clauseguard-hybrid-1c5e2.firebaseapp.com",
+  projectId: "clauseguard-hybrid-1c5e2",
+  storageBucket: "clauseguard-hybrid-1c5e2.firebasestorage.app",
+  messagingSenderId: "80615674816",
+  appId: "1:80615674816:web:dd73086d2b177dd0e02e25",
+  cloudModelId: DEFAULT_CLOUD_MODEL_ID,
+};
+
 const LOCAL_ONLY_APP_NAME = "clauseguard-local-only";
 const CLOUD_APP_NAME = "clauseguard-cloud";
 const LOCAL_PLACEHOLDER_PREFIX = "clauseguard-local-only";
@@ -104,23 +119,28 @@ export function readFirebaseEnvConfig(): Partial<FirebaseRuntimeConfig> | null {
   if (env.MODE === "test") {
     return null;
   }
-  const apiKey = env.VITE_FIREBASE_API_KEY?.trim();
-  const projectId = env.VITE_FIREBASE_PROJECT_ID?.trim();
-  const appId = env.VITE_FIREBASE_APP_ID?.trim();
-  if (!apiKey || !projectId || !appId) {
-    return null;
-  }
+
   const rawDebug = env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN?.trim();
-  const debugToken: boolean | string | undefined =
+  let debugToken: boolean | string | undefined =
     rawDebug === "true" ? true : rawDebug && rawDebug.length > 0 ? rawDebug : undefined;
 
+  if (
+    debugToken === undefined &&
+    isLocalhostContext() &&
+    typeof sessionStorage !== "undefined" &&
+    sessionStorage.getItem("CG_LOCALHOST_APPCHECK_DEBUG") === "true"
+  ) {
+    debugToken = true;
+  }
+
   return {
-    apiKey,
-    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN?.trim() || undefined,
-    projectId,
-    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET?.trim() || undefined,
-    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim() || undefined,
-    appId,
+    apiKey: env.VITE_FIREBASE_API_KEY?.trim() || DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG.apiKey,
+    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN?.trim() || DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG.authDomain,
+    projectId: env.VITE_FIREBASE_PROJECT_ID?.trim() || DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG.projectId,
+    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET?.trim() || DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG.storageBucket,
+    messagingSenderId:
+      env.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim() || DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG.messagingSenderId,
+    appId: env.VITE_FIREBASE_APP_ID?.trim() || DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG.appId,
     recaptchaEnterpriseSiteKey: env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY?.trim() || undefined,
     debugAppCheckToken: debugToken,
     useLimitedUseAppCheckTokens: env.VITE_FIREBASE_USE_LIMITED_USE_APPCHECK === "true",
@@ -145,21 +165,12 @@ function getOrCreateNamedApp(name: string, options: FirebaseOptions): FirebaseAp
  * Isolated local-only Firebase AI Logic runtime for ONLY_ON_DEVICE calls.
  * Never activates App Check network exchange or cloud endpoints.
  */
-export function getLocalOnlyFirebaseAI(config?: Partial<FirebaseRuntimeConfig> | null): AI {
-  const options: FirebaseOptions = isLiveFirebaseConfig(config)
-    ? {
-        apiKey: config.apiKey,
-        authDomain: config.authDomain,
-        projectId: config.projectId,
-        storageBucket: config.storageBucket,
-        messagingSenderId: config.messagingSenderId,
-        appId: config.appId,
-      }
-    : {
-        apiKey: "local-only-no-cloud-egress",
-        projectId: LOCAL_PLACEHOLDER_PREFIX,
-        appId: "1:000000000000:web:localonly",
-      };
+export function getLocalOnlyFirebaseAI(_config?: Partial<FirebaseRuntimeConfig> | null): AI {
+  const options: FirebaseOptions = {
+    apiKey: "local-only-no-cloud-egress",
+    projectId: LOCAL_PLACEHOLDER_PREFIX,
+    appId: "1:000000000000:web:localonly",
+  };
 
   const app = getOrCreateNamedApp(LOCAL_ONLY_APP_NAME, options);
   return getAI(app, { backend: new GoogleAIBackend() });
@@ -217,7 +228,7 @@ export function createOnDeviceEntityModel(
   return model;
 }
 
-export function createOnDeviceTriageModel(ai: AI, systemPrompt: string): GenerativeModel {
+export function createCompactOnDeviceModel(ai: AI): GenerativeModel {
   return getGenerativeModel(
     ai,
     {
@@ -226,12 +237,22 @@ export function createOnDeviceTriageModel(ai: AI, systemPrompt: string): Generat
         createOptions: {
           expectedInputs: [{ type: "text", languages: ["en"] }],
           expectedOutputs: [{ type: "text", languages: ["en"] }],
-          initialPrompts: [
-            {
-              role: "system",
-              content: [{ type: "text", value: systemPrompt }],
-            },
-          ],
+        },
+      },
+    },
+    { baseUrl: "http://127.0.0.1:0/only-on-device-cloud-egress-blocked" }
+  );
+}
+
+export function createOnDeviceTriageModel(ai: AI, _systemPrompt: string): GenerativeModel {
+  return getGenerativeModel(
+    ai,
+    {
+      mode: InferenceMode.ONLY_ON_DEVICE,
+      onDeviceParams: {
+        createOptions: {
+          expectedInputs: [{ type: "text", languages: ["en"] }],
+          expectedOutputs: [{ type: "text", languages: ["en"] }],
         },
       },
     },

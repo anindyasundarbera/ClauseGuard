@@ -26,9 +26,10 @@ from typing import Any
 
 from playwright.sync_api import sync_playwright
 
-ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROBE_HTML = Path(__file__).resolve().parent / "probe_harness.html"
-OUT_JSON = ROOT / "research" / "evidence" / "clauseguard-mvp" / "phase2-nano-runtime-matrix.json"
+OUT_JSON = PROJECT_ROOT / "evidence" / "phase2-nano-runtime-matrix.json"
+EIS_MIRROR_JSON = PROJECT_ROOT.parents[1] / "research" / "evidence" / "clauseguard-mvp" / "phase2-nano-runtime-matrix.json"
 PROFILE_DIR = Path.home() / ".cache" / "clauseguard-chrome-nano-profile"
 
 
@@ -412,8 +413,11 @@ def run_probe() -> dict[str, Any]:
         "circuit_breaker_cb1_triggered": not created_live,
         "gate_g2_status": "PASS" if created_live else "BLOCKED_WEIGHT_DELIVERY_CB1_ACTIVE",
     }
+    payload_text = json.dumps(result, indent=2)
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
-    OUT_JSON.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    OUT_JSON.write_text(payload_text, encoding="utf-8")
+    if EIS_MIRROR_JSON.parent.exists():
+        EIS_MIRROR_JSON.write_text(payload_text, encoding="utf-8")
     print(json.dumps({"created_live_session": created_live, "gate_g2_status": result["gate_g2_status"], "verdicts": {m["exp_id"]: m["verdict"] for m in matrix}}, indent=2))
     return result
 

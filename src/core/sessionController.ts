@@ -124,6 +124,7 @@ export class ClauseGuardSessionController {
   public lastCloudSdkSource: "in_cloud" | "SIMULATED_CLOUD_SYNTHESIS" | null = null;
   public downloadProgressPct: number | null = null;
   public remoteConfigSnapshot: RemoteConfigRuntimeSnapshot = { ...DEFAULT_REMOTE_CONFIG_SNAPSHOT };
+  private currentCloudAbortController: AbortController | null = null;
 
   // Ephemeral RAM workspace by default; optional encrypted IDB persistence
   public workspaceId = "EPHEMERAL_INCOGNITO";
@@ -196,6 +197,13 @@ export class ClauseGuardSessionController {
     };
   }
 
+  private abortInFlightCloudAnalysis(): void {
+    if (this.currentCloudAbortController) {
+      this.currentCloudAbortController.abort();
+      this.currentCloudAbortController = null;
+    }
+  }
+
   public async refreshReadiness(): Promise<void> {
     const probe = await probeNanoReadiness();
     this.readinessState = probe.state;
@@ -205,12 +213,16 @@ export class ClauseGuardSessionController {
     }
   }
 
-  public async initializeOnDeviceModel(): Promise<{ status: string; detail: string }> {
+  public async initializeOnDeviceModel(
+    onProgress?: (pct: number) => void
+  ): Promise<{ status: string; detail: string }> {
     this.downloadProgressPct = 0;
     const res = await initializeOnDeviceModelWithGesture((pct) => {
       this.downloadProgressPct = pct;
+      onProgress?.(pct);
     }, this.firebaseConfig);
     await this.refreshReadiness();
+    this.readinessDetail = res.detail;
     if (res.status !== "READY") {
       this.warnings.push(res.detail);
     }
@@ -236,6 +248,7 @@ export class ClauseGuardSessionController {
     bytes?: Uint8Array;
     text?: string;
   }): Promise<void> {
+    this.abortInFlightCloudAnalysis();
     this.warnings = [];
     this.findings = [];
     this.cloudInferenceSource = null;
@@ -358,6 +371,7 @@ export class ClauseGuardSessionController {
   }
 
   public async acceptAllPendingEntities(): Promise<void> {
+    this.abortInFlightCloudAnalysis();
     this.approvalMachine.invalidateOnEdit();
     for (const ent of this.entities) {
       if (ent.reviewStatus === "PENDING_REVIEW" || ent.reviewStatus === "NEEDS_DECISION") {
@@ -368,6 +382,7 @@ export class ClauseGuardSessionController {
   }
 
   public async toggleEntityStatus(entityId: string, status: "ACCEPTED" | "REJECTED"): Promise<void> {
+    this.abortInFlightCloudAnalysis();
     this.approvalMachine.invalidateOnEdit();
     for (const ent of this.entities) {
       if (ent.id === entityId) {
@@ -378,6 +393,7 @@ export class ClauseGuardSessionController {
   }
 
   public async updateCanonicalGroupRole(canonicalKey: string, newRole: ContractRole): Promise<void> {
+    this.abortInFlightCloudAnalysis();
     this.approvalMachine.invalidateOnEdit();
     for (const ent of this.entities) {
       if (ent.canonicalKey === canonicalKey) {
@@ -397,6 +413,7 @@ export class ClauseGuardSessionController {
     const norm = this.document.normalizedText;
     let added = 0;
     let cursor = 0;
+    this.abortInFlightCloudAnalysis();
     this.approvalMachine.invalidateOnEdit();
 
     while (cursor <= norm.length - needle.length) {
@@ -449,30 +466,53 @@ export class ClauseGuardSessionController {
         "Switch privacy mode to HYBRID_ANONYMIZED and approve the exact payload to enable cloud synthesis."
       );
     }
+    this.abortInFlightCloudAnalysis();
+    const abortCtrl = new AbortController();
+    this.currentCloudAbortController = abortCtrl;
+
     const snap = this.approvalMachine.getSnapshot();
     const effectiveConfig = opts.firebaseConfig ?? this.firebaseConfig;
-    const res = await analyzeApprovedPayload(snap, this.redaction, {
-      cloudMode: "ONLY_IN_CLOUD",
-      firebaseConfig: effectiveConfig,
-      modelId: opts.modelId ?? this.selectedCloudModel,
-      playbookId: this.remoteConfigSnapshot.playbookId,
-      allowLocalSimulatedCloud: opts.allowSimulatedCloud ?? true,
-      onFirebaseTelemetry: (info) => {
-        this.appCheckStatus = info.appCheckStatus;
-        this.firebaseInitSequence = info.initSequence;
-      },
-    });
-    this.findings = res;
-    const primary = res[0];
-    if (primary?.analysisSource === "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD") {
-      this.lastCloudSdkSource = "in_cloud";
-      this.cloudInferenceSource = `FIREBASE_AI_LOGIC_ONLY_IN_CLOUD (${primary.modelUsed ?? this.selectedCloudModel}, inferenceSource=in_cloud)`;
-    } else {
-      this.lastCloudSdkSource = "SIMULATED_CLOUD_SYNTHESIS";
-      this.cloudInferenceSource = "SIMULATED_CLOUD_SYNTHESIS (0 external packets)";
+    try {
+      const res = await analyzeApprovedPayload(snap, this.redaction, {
+        cloudMode: "ONLY_IN_CLOUD",
+        firebaseConfig: effectiveConfig,
+        modelId: opts.modelId ?? this.selectedCloudModel,
+        playbookId: this.remoteConfigSnapshot.playbookId,
+        allowLocalSimulatedCloud: opts.allowSimulatedCloud ?? true,
+        signal: abortCtrl.signal,
+        onFirebaseTelemetry: (info) => {
+          this.appCheckStatus = info.appCheckStatus;
+          this.firebaseInitSequence = info.initSequence;
+          this.selectedCloudModel = info.modelUsed as SupportedFirebaseCloudModel;
+        },
+      });
+      const postSnap = this.approvalMachine.getSnapshot();
+      if (
+        abortCtrl.signal.aborted ||
+        postSnap.state !== "HUMAN_APPROVED_FOR_CLOUD" ||
+        this.redaction?.sanitizedSha256 !== postSnap.approvedPayloadSha256
+      ) {
+        throw new PrivacyBoundaryError(
+          "ERR_STALE_APPROVAL_BLOCKED",
+          "Cloud response discarded because contract state changed while request was in flight."
+        );
+      }
+      this.findings = res;
+      const primary = res[0];
+      if (primary?.analysisSource === "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD") {
+        this.lastCloudSdkSource = "in_cloud";
+        this.cloudInferenceSource = `FIREBASE_AI_LOGIC_ONLY_IN_CLOUD (${primary.modelUsed ?? this.selectedCloudModel}, inferenceSource=in_cloud)`;
+      } else {
+        this.lastCloudSdkSource = "SIMULATED_CLOUD_SYNTHESIS";
+        this.cloudInferenceSource = "SIMULATED_CLOUD_SYNTHESIS (0 external packets)";
+      }
+      this.approvalMachine.transitionTo("REHYDRATED");
+      return res;
+    } finally {
+      if (this.currentCloudAbortController === abortCtrl) {
+        this.currentCloudAbortController = null;
+      }
     }
-    this.approvalMachine.transitionTo("REHYDRATED");
-    return res;
   }
 
   public async runOfflineLocalClauseTriage(clauseText: string): Promise<ContractFinding> {
@@ -539,6 +579,7 @@ export class ClauseGuardSessionController {
   }
 
   public async purgeAllSessionAndStorage(): Promise<void> {
+    this.abortInFlightCloudAnalysis();
     this.document = null;
     this.rawDocumentSha256 = "NONE";
     this.entities = [];

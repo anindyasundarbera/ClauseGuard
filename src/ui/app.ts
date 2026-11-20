@@ -1,3 +1,4 @@
+import { DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG } from "../core/firebase/firebaseClient.ts";
 import {
   ClauseGuardSessionController,
   SYNTHETIC_SAMPLE_CONTRACTS,
@@ -22,6 +23,8 @@ function renderAll(): void {
   el<HTMLSelectElement>("cloud-model-select").value = controller.selectedCloudModel;
 
   const telemetry = controller.getObservedFirebaseTelemetry();
+  el("firebase-project-badge").textContent =
+    controller.firebaseConfig?.projectId ?? "UNCONFIGURED (Local Sim)";
   el("firebase-sdk-badge").textContent = telemetry.sdkVersion;
   el("appcheck-status-badge").textContent = telemetry.appCheckStatus;
   el("cloud-model-badge").textContent = telemetry.activeCloudModel;
@@ -190,6 +193,14 @@ function renderAll(): void {
 }
 
 async function initUi(): Promise<void> {
+  const fbJsonBox = el<HTMLTextAreaElement>("firebase-config-json");
+  if (!fbJsonBox.value.trim()) {
+    fbJsonBox.value = JSON.stringify(DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG, null, 2);
+  }
+  el<HTMLInputElement>("chk-debug-appcheck").checked = Boolean(
+    controller.firebaseConfig?.debugAppCheckToken
+  );
+
   await controller.refreshReadiness();
 
   const samplesDiv = el("sample-buttons");
@@ -211,8 +222,16 @@ async function initUi(): Promise<void> {
     samplesDiv.appendChild(b);
   }
 
-  el("btn-init-nano").addEventListener("click", async () => {
-    await controller.initializeOnDeviceModel();
+  const btnInitNano = el<HTMLButtonElement>("btn-init-nano");
+  btnInitNano.addEventListener("click", async () => {
+    btnInitNano.disabled = true;
+    btnInitNano.textContent = "Initializing On-Device Model...";
+    try {
+      await controller.initializeOnDeviceModel(() => renderAll());
+    } finally {
+      btnInitNano.disabled = false;
+      btnInitNano.textContent = "Initialize / Download On-Device Model";
+    }
     renderAll();
   });
 
@@ -260,6 +279,12 @@ async function initUi(): Promise<void> {
       const parsed = JSON.parse(rawJson) as Partial<FirebaseRuntimeConfig>;
       const siteKey = el<HTMLInputElement>("recaptcha-site-key").value.trim();
       const debugChecked = el<HTMLInputElement>("chk-debug-appcheck").checked;
+      if (
+        typeof sessionStorage !== "undefined" &&
+        (location.hostname === "localhost" || location.hostname === "127.0.0.1")
+      ) {
+        sessionStorage.setItem("CG_LOCALHOST_APPCHECK_DEBUG", debugChecked ? "true" : "false");
+      }
       controller.setFirebaseConfig({
         ...parsed,
         recaptchaEnterpriseSiteKey: siteKey || parsed.recaptchaEnterpriseSiteKey,
@@ -377,6 +402,9 @@ async function initUi(): Promise<void> {
     el<HTMLInputElement>("recaptcha-site-key").value = "";
     el<HTMLInputElement>("chk-debug-appcheck").checked = false;
     el<HTMLInputElement>("vault-passphrase").value = "";
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem("CG_LOCALHOST_APPCHECK_DEBUG");
+    }
     await controller.purgeAllSessionAndStorage();
     renderAll();
   });

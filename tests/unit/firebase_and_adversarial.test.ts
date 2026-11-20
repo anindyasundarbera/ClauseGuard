@@ -12,6 +12,10 @@ import {
   PrivacyBoundaryError,
 } from "../../src/core/inference/approvalMachine.ts";
 import { buildRedaction } from "../../src/core/redaction/redactor.ts";
+import {
+  ClauseGuardSessionController,
+  SYNTHETIC_SAMPLE_CONTRACTS,
+} from "../../src/core/sessionController.ts";
 import { SafeLogger } from "../../src/core/telemetry/privacyReport.ts";
 import type { DetectedEntity } from "../../src/core/types.ts";
 
@@ -372,5 +376,95 @@ describe("Firebase AI Logic ONLY_IN_CLOUD, App Check, Remote Config & Adversaria
         "FIREBASE_APPCHECK_DEBUG_TOKEN=123e4567-e89b-12d3-a456-426614174000 key=AIzaSyDummyKeyValue1234567890"
       )
     ).toBe("FIREBASE_APPCHECK_DEBUG_TOKEN=[REDACTED] key=[REDACTED_KEY]");
+  });
+
+  it("aborts and discards in-flight cloud analysis if an entity is edited mid-request (M-01)", async () => {
+    const ctrl = new ClauseGuardSessionController();
+    await ctrl.ingestFileOrText({
+      fileName: SYNTHETIC_SAMPLE_CONTRACTS[0].fileName,
+      mimeType: "text/plain",
+      text: SYNTHETIC_SAMPLE_CONTRACTS[0].text,
+    });
+    await ctrl.acceptAllPendingEntities();
+    ctrl.privacyMode = "HYBRID_ANONYMIZED";
+    await ctrl.approveCurrentPayload();
+
+    let serverResponded = false;
+    activeServer = http.createServer((_req, res) => {
+      setTimeout(() => {
+        serverResponded = true;
+        if (!res.destroyed) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              candidates: [
+                {
+                  content: {
+                    role: "model",
+                    parts: [{ text: JSON.stringify({ findings: [] }) }],
+                  },
+                  finishReason: "STOP",
+                },
+              ],
+            })
+          );
+        }
+      }, 150);
+    });
+    await new Promise<void>((resolve) => activeServer!.listen(0, "127.0.0.1", resolve));
+    const addr = activeServer.address() as { port: number };
+
+    let abortedBySignal = false;
+    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+      const sig = init?.signal;
+      const { signal: _drop, ...rest } = init ?? {};
+      return new Promise<Response>((resolve, reject) => {
+        if (sig?.aborted) {
+          abortedBySignal = true;
+          reject(new DOMException("Aborted", "AbortError"));
+          return;
+        }
+        sig?.addEventListener(
+          "abort",
+          () => {
+            abortedBySignal = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          },
+          { once: true }
+        );
+        originalFetch(input, rest).then(resolve, reject);
+      });
+    };
+
+    ctrl.setFirebaseConfig({
+      apiKey: "test-key-m01",
+      projectId: "test-proj-m01",
+      appId: "1:123456:web:m01",
+      firebaseBaseUrl: `http://127.0.0.1:${addr.port}`,
+      cloudModelId: "gemini-3.5-flash-lite",
+      customAppCheckTokenProvider: async () => ({
+        token: "tok-m01",
+        expireTimeMillis: Date.now() + 3600_000,
+      }),
+    });
+
+    const inFlight = ctrl.runApprovedCloudAnalysis({ allowSimulatedCloud: false });
+    const caughtPromise = inFlight.then(
+      () => null as unknown,
+      (err: unknown) => err
+    );
+    await new Promise((r) => setTimeout(r, 25));
+    await ctrl.toggleEntityStatus(ctrl.entities[0].id, "REJECTED");
+
+    const settledErr = await caughtPromise;
+    expect(settledErr).not.toBeNull();
+    expect(String(settledErr)).toMatch(/AbortError|Aborted|STALE/i);
+    expect(abortedBySignal || ctrl.approvalMachine.getSnapshot().state === "STALE_APPROVAL_INVALIDATED").toBe(
+      true
+    );
+    expect(ctrl.approvalMachine.getSnapshot().state).toBe("STALE_APPROVAL_INVALIDATED");
+    expect(ctrl.findings).toEqual([]);
+    await new Promise((r) => setTimeout(r, 170));
+    expect(typeof serverResponded).toBe("boolean");
   });
 });

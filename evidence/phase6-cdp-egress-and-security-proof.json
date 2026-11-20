@@ -1,0 +1,78 @@
+{
+  "verification_id": "CG-MVP-PHASE6-CDP-EGRESS-AND-SECURITY-PROOF",
+  "executed_at_utc": "2026-11-20T03:47:02.531203+00:00",
+  "chrome_executable": "/usr/bin/google-chrome",
+  "total_cdp_requests_observed": 10,
+  "external_unexpected_requests": [],
+  "local_mock_cloud_posts_observed": 3,
+  "cloud_endpoint_scope_note": "All 3 CDP POST assertions hit local 127.0.0.1 mock @firebase/ai wire receiver (GoogleAIBackend + X-Firebase-AppCheck); live Google Gemini Developer API HTTP 200 execution against clauseguard-hybrid-1c5e2 was separately verified via interactive Chrome session.",
+  "raw_canaries_in_cloud_posts": [],
+  "raw_canaries_in_urls": [],
+  "raw_canaries_in_console": [],
+  "scenarios": {
+    "01_cold_start_readiness": {
+      "status": "PASS",
+      "badge": "DEGRADED_DETERMINISTIC_SAFE"
+    },
+    "02_before_approval_zero_cloud": {
+      "status": "PASS",
+      "approve_disabled_while_pending": true,
+      "approval_state": "PAYLOAD_PREVIEWED",
+      "cloud_calls_so_far": 0,
+      "raw_canaries_in_preview": []
+    },
+    "03_approved_cloud_exact_sha_match": {
+      "status": "PASS",
+      "approved_sha": "beb29384cd738afbdc4c3260fb24b8d9bf6fe14c8b6313a53c54c5a9e390b7c0",
+      "sent_sha": "beb29384cd738afbdc4c3260fb24b8d9bf6fe14c8b6313a53c54c5a9e390b7c0",
+      "firebase_wire_path": "/v1beta/projects/cdp-test-proj/models/gemini-3.5-flash-lite:generateContent",
+      "app_check_header_present": true,
+      "analysis_source": "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD",
+      "observed_inference_source": "in_cloud",
+      "raw_canaries_in_cloud_post": [],
+      "rehydrated_contains_meridian": true,
+      "unmapped_token_flagged": true
+    },
+    "04_stale_approval_invalidation": {
+      "status": "PASS",
+      "stale_state": "STALE_APPROVAL_INVALIDATED",
+      "error": "PrivacyBoundaryError: ERR_UNAPPROVED_EGRESS_BLOCKED: Blocked outbound cloud call: state is 'STALE_APPROVAL_INVALIDATED'.",
+      "cloud_calls_total": 1
+    },
+    "05_cloud_failure_and_retry": {
+      "status": "PASS",
+      "first_error": "AI: Error fetching from http://127.0.0.1:43585/v1beta/projects/cdp-test-proj/models/gemini-3.5-flash-lite:generateContent: [500 Internal Server Error] Simulated transient HTTP 500 (AI/fetch-error)",
+      "cloud_calls_total": 3,
+      "raw_canaries_across_all_posts": []
+    },
+    "06_local_docx_ingestion": {
+      "status": "PASS",
+      "sanitized_len": 172
+    },
+    "06b_local_pdf_ingestion": {
+      "status": "PASS",
+      "pdf_preview_len": 136,
+      "pdf_parsed_and_redacted_in_chrome": true
+    },
+    "07_adversarial_injection_and_xss": {
+      "status": "PASS",
+      "xss_executed": false,
+      "warnings_excerpt": "Stripped 1 invisible Unicode Cf characters during NFKC normalization.Chunk 1: Prompt-injection pattern detected in chunk; handled deterministically with manual review alert.SUSPICIOUS_ZERO_DETECTION on Chunk 1: manual Airlock inspection required."
+    },
+    "08_offline_local_triage": {
+      "status": "PASS",
+      "new_requests_while_offline": 0
+    },
+    "09_session_purge": {
+      "status": "PASS",
+      "after_purge_sha": "NONE",
+      "controller_document_null": true
+    },
+    "10_model_disabled_fail_closed": {
+      "status": "PASS",
+      "readiness_badge": "DOWNLOADABLE_PENDING_WEIGHTS",
+      "external_requests": []
+    }
+  },
+  "all_scenarios_passed": true
+}

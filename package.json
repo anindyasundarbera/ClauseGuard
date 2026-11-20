@@ -3,14 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "ClauseGuard Hybrid — Privacy-First Hybrid AI Contract Redaction & Cross-Clause Risk Analysis MVP (PRJ-CLAUSEGUARD-HYBRID / WO-055)",
+  "description": "ClauseGuard Hybrid — Privacy-First Hybrid AI Contract Redaction & Cross-Clause Risk Analysis MVP",
   "license": "MIT",
   "scripts": {
     "dev": "vite --port 4173 --strictPort",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173 --strictPort",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bench": "python3 benchmarks/cg_bench_v2_runner.py"
   },
   "dependencies": {
     "firebase": "13.4.0",

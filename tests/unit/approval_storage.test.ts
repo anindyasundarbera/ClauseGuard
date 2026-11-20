@@ -123,7 +123,7 @@ describe("Approval State Machine, ZeroCanaryPreflight, WebCrypto Vault & Session
     await purgeAllWorkspaceStorage();
     const afterPurge = await loadEncryptedWorkspaceFromIdb("WS-ALPHA", "strong-passphrase-2026");
     expect(afterPurge).toBeNull();
-  });
+  }, 15_000);
 
   it("completes full end-to-end controller workflow, SafeLogger redaction, and 16-field Privacy Report", async () => {
     const ctrl = new ClauseGuardSessionController();

@@ -1,0 +1,152 @@
+{
+  "benchmark_id": "CG-BENCH-V1-AND-V2-COMPARISON",
+  "executed_at_utc": "2026-11-19T16:19:40.936539+00:00",
+  "corpus_versions": {
+    "cg_bench_v1_docs": 6,
+    "cg_bench_v2_docs": 42,
+    "total_v2_ground_truth_mentions": 250
+  },
+  "cg_bench_v1_reproduced": {
+    "ARCH-RET-1_EXACT_MATCH": {
+      "tp": 20,
+      "fp": 0,
+      "fn": 14,
+      "precision": 1.0,
+      "recall": 0.5882,
+      "f2_score": 0.641,
+      "false_conflations": 0,
+      "cross_doc_role_contamination_count": 6,
+      "latency_ms": 1.962
+    },
+    "ARCH-RET-2_NORM_SUFFIX_ALIAS": {
+      "tp": 15,
+      "fp": 4,
+      "fn": 19,
+      "precision": 0.7895,
+      "recall": 0.4412,
+      "f2_score": 0.4839,
+      "false_conflations": 0,
+      "cross_doc_role_contamination_count": 6,
+      "latency_ms": 6.778
+    },
+    "ARCH-RET-3_BM25_TRIGRAM_FUZZY": {
+      "tp": 15,
+      "fp": 7,
+      "fn": 19,
+      "precision": 0.6818,
+      "recall": 0.4412,
+      "f2_score": 0.4747,
+      "false_conflations": 0,
+      "cross_doc_role_contamination_count": 6,
+      "latency_ms": 18.526
+    },
+    "ARCH-RET-4_ENTITY_GRAPH_HYBRID_SCOPED": {
+      "tp": 15,
+      "fp": 7,
+      "fn": 19,
+      "precision": 0.6818,
+      "recall": 0.4412,
+      "f2_score": 0.4747,
+      "false_conflations": 0,
+      "cross_doc_role_contamination_count": 5,
+      "latency_ms": 19.427
+    },
+    "ARCH-RET-4.1_CONTEXTUAL_DISAMBIGUATED": {
+      "tp": 24,
+      "fp": 1,
+      "fn": 10,
+      "precision": 0.96,
+      "recall": 0.7059,
+      "f2_score": 0.7453,
+      "false_conflations": 0,
+      "cross_doc_role_contamination_count": 5,
+      "latency_ms": 14.122
+    },
+    "ARCH-RET-5_LEXICAL_COSINE_PROXY": {
+      "tp": 14,
+      "fp": 11,
+      "fn": 20,
+      "precision": 0.56,
+      "recall": 0.4118,
+      "f2_score": 0.4348,
+      "false_conflations": 3,
+      "cross_doc_role_contamination_count": 7,
+      "latency_ms": 6.119
+    }
+  },
+  "cg_bench_v2_results": {
+    "ARCH-RET-1_EXACT_MATCH": {
+      "tp": 190,
+      "fp": 1,
+      "fn": 60,
+      "precision": 0.9948,
+      "recall": 0.76,
+      "f2_score": 0.7976,
+      "false_conflations": 1,
+      "cross_doc_role_contamination_count": 63,
+      "latency_ms": 6.815
+    },
+    "ARCH-RET-2_NORM_SUFFIX_ALIAS": {
+      "tp": 100,
+      "fp": 7,
+      "fn": 150,
+      "precision": 0.9346,
+      "recall": 0.4,
+      "f2_score": 0.4517,
+      "false_conflations": 1,
+      "cross_doc_role_contamination_count": 86,
+      "latency_ms": 85.165
+    },
+    "ARCH-RET-3_BM25_TRIGRAM_FUZZY": {
+      "tp": 100,
+      "fp": 82,
+      "fn": 150,
+      "precision": 0.5495,
+      "recall": 0.4,
+      "f2_score": 0.423,
+      "false_conflations": 1,
+      "cross_doc_role_contamination_count": 86,
+      "latency_ms": 257.138
+    },
+    "ARCH-RET-4_ENTITY_GRAPH_HYBRID_SCOPED": {
+      "tp": 100,
+      "fp": 82,
+      "fn": 150,
+      "precision": 0.5495,
+      "recall": 0.4,
+      "f2_score": 0.423,
+      "false_conflations": 1,
+      "cross_doc_role_contamination_count": 5,
+      "latency_ms": 252.647
+    },
+    "ARCH-RET-4.1_CONTEXTUAL_DISAMBIGUATED": {
+      "tp": 218,
+      "fp": 2,
+      "fn": 32,
+      "precision": 0.9909,
+      "recall": 0.872,
+      "f2_score": 0.8934,
+      "false_conflations": 1,
+      "cross_doc_role_contamination_count": 5,
+      "latency_ms": 123.56
+    },
+    "ARCH-RET-5_LEXICAL_COSINE_PROXY": {
+      "tp": 75,
+      "fp": 126,
+      "fn": 175,
+      "precision": 0.3731,
+      "recall": 0.3,
+      "f2_score": 0.3122,
+      "false_conflations": 10,
+      "cross_doc_role_contamination_count": 64,
+      "latency_ms": 70.202
+    }
+  },
+  "longest_span_surface_indexed_v2_redaction": {
+    "documents_tested": 42,
+    "exact_roundtrip_matches": 42,
+    "exact_roundtrip_rate": 1.0,
+    "substring_corruptions": 0
+  },
+  "dense_embedding_note": "ARCH-RET-5_LEXICAL_COSINE_PROXY uses character-trigram cosine similarity (not a neural embedding model); live ONNX dense embeddings remain untested and excluded per ADR-CG-001."
+}

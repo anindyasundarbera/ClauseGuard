@@ -20,11 +20,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LLAMA_RUNTIME_DIR = (Path.home() / ".local/share/nano-workaround/runtime")
 LLAMA_CLI = LLAMA_RUNTIME_DIR / "llama-cli"
 MODELS_DIR = (Path.home() / ".local/share/nano-workaround/models")
-OUT_PATH = ROOT / "research" / "evidence" / "clauseguard-mvp" / "llamacpp-diagnostic-comparison.json"
+OUT_PATH = PROJECT_ROOT / "evidence" / "llamacpp-diagnostic-comparison.json"
+EIS_MIRROR_PATH = PROJECT_ROOT.parents[1] / "research" / "evidence" / "clauseguard-mvp" / "llamacpp-diagnostic-comparison.json"
 
 SYSTEM_PROMPT = (
     "Extract only proper-noun organizations (ORG), people (PERSON), and project codenames (CODENAME) "
@@ -197,8 +198,11 @@ def main() -> int:
             }
         )
 
+    payload_text = json.dumps(report, indent=2) + "\n"
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUT_PATH.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    OUT_PATH.write_text(payload_text, encoding="utf-8")
+    if EIS_MIRROR_PATH.parent.exists():
+        EIS_MIRROR_PATH.write_text(payload_text, encoding="utf-8")
     print(json.dumps(report, indent=2))
     return 0
 

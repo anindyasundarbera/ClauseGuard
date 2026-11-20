@@ -4,6 +4,7 @@ import {
   ensureCloudFirebaseRuntime,
   InferenceSource,
   isLiveFirebaseConfig,
+  SUPPORTED_FIREBASE_CLOUD_MODELS,
   validateSupportedCloudModel,
 } from "../firebase/firebaseClient.ts";
 import { sha256Hex } from "../ingestion/normalizer.ts";
@@ -16,6 +17,7 @@ import type {
   FirebaseRuntimeConfig,
   HumanApprovedPayload,
   RedactionResult,
+  SupportedFirebaseCloudModel,
 } from "../types.ts";
 
 export { PrivacyBoundaryError };
@@ -284,36 +286,78 @@ export async function analyzeApprovedPayload(
       );
     }
 
-    const cloudModel = handle.createCloudModel(validatedModel);
-    opts.onFirebaseTelemetry?.({
-      appCheckStatus: handle.appCheckStatus,
-      initSequence: handle.initSequence,
-      modelUsed: validatedModel,
-    });
-
     const playbook = opts.playbookId ?? "COMMERCIAL_MSA_CONTRADICTION";
     const prompt =
       `Playbook: ${playbook}\n` +
       `Payload-SHA256: ${approval.approvedPayloadSha256}\n` +
       `Analyze ONLY the sanitized contract text below for cross-clause risk contradictions:\n\n${sanitizedText}`;
 
-    const result = await cloudModel.generateContent(prompt, {
-      signal: opts.signal,
-      timeout: opts.timeoutMs ?? 30_000,
-    });
+    const isCustomMockEndpoint = Boolean(opts.firebaseConfig?.firebaseBaseUrl);
+    const candidateModels: SupportedFirebaseCloudModel[] = isCustomMockEndpoint
+      ? [validatedModel]
+      : [validatedModel, ...SUPPORTED_FIREBASE_CLOUD_MODELS.filter((m) => m !== validatedModel)];
 
-    if (result.response.inferenceSource !== InferenceSource.IN_CLOUD) {
-      throw new PrivacyBoundaryError(
-        "ERR_UNEXPECTED_INFERENCE_SOURCE",
-        `Expected inferenceSource 'in_cloud' from ONLY_IN_CLOUD model, observed '${String(result.response.inferenceSource)}'.`
-      );
+    const sleepBrief = (ms: number): Promise<void> =>
+      new Promise((resolve) => {
+        if (opts.signal?.aborted) {
+          resolve();
+          return;
+        }
+        setTimeout(resolve, ms);
+      });
+
+    let lastErr: unknown;
+    for (let mIdx = 0; mIdx < candidateModels.length; mIdx++) {
+      const activeModel = candidateModels[mIdx];
+      const maxTries = isCustomMockEndpoint ? 1 : mIdx === 0 ? 2 : 1;
+      for (let attempt = 0; attempt < maxTries; attempt++) {
+        if (opts.signal?.aborted) {
+          throw new PrivacyBoundaryError(
+            "ERR_STALE_APPROVAL_BLOCKED",
+            "Cloud request aborted because contract state changed."
+          );
+        }
+        try {
+          const cloudModel = handle.createCloudModel(activeModel);
+          const result = await cloudModel.generateContent(prompt, {
+            signal: opts.signal,
+            timeout: opts.timeoutMs ?? 30_000,
+          });
+
+          if (result.response.inferenceSource !== InferenceSource.IN_CLOUD) {
+            throw new PrivacyBoundaryError(
+              "ERR_UNEXPECTED_INFERENCE_SOURCE",
+              `Expected inferenceSource 'in_cloud' from ONLY_IN_CLOUD model, observed '${String(result.response.inferenceSource)}'.`
+            );
+          }
+
+          opts.onFirebaseTelemetry?.({
+            appCheckStatus: handle.appCheckStatus,
+            initSequence: handle.initSequence,
+            modelUsed: activeModel,
+          });
+
+          return validateAndNormalizeCloudFindings(
+            result.response.text(),
+            currentRedaction.tokenToSurface,
+            activeModel
+          );
+        } catch (err) {
+          lastErr = err;
+          if (opts.signal?.aborted || isCustomMockEndpoint) {
+            throw err;
+          }
+          const isTransientDemand = /500|503|429|high demand|overloaded|temporarily|UNAVAILABLE|RESOURCE_EXHAUSTED/i.test(
+            String(err)
+          );
+          if (!isTransientDemand) {
+            throw err;
+          }
+          await sleepBrief(500);
+        }
+      }
     }
-
-    return validateAndNormalizeCloudFindings(
-      result.response.text(),
-      currentRedaction.tokenToSurface,
-      validatedModel
-    );
+    throw lastErr;
   }
 
   // Path 2: Explicitly labeled local simulated cloud cross-clause analyzer (0 external packets)

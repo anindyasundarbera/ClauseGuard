@@ -1,4 +1,5 @@
 import {
+  createCompactOnDeviceModel,
   createOnDeviceEntityModel,
   createOnDeviceTriageModel,
   getLocalOnlyFirebaseAI,
@@ -229,11 +230,28 @@ export function splitIntoTokenBoundedChunks(normalizedText: string): TextChunk[]
   return chunks;
 }
 
+let detectedChromiumEchoStub = false;
+
+export function resetNanoAdapterStateForTests(): void {
+  detectedChromiumEchoStub = false;
+}
+
+export function isChromiumEchoStubResponse(text: string): boolean {
+  return /on-device model is not available in chromium|this api is just echoing back the input/i.test(text);
+}
+
 /** Probe actual Chrome LanguageModel availability without modifying cloud state. */
 export async function probeNanoReadiness(): Promise<{
   state: NanoReadinessState;
   detail: string;
 }> {
+  if (detectedChromiumEchoStub) {
+    return {
+      state: "DEGRADED_DETERMINISTIC_SAFE",
+      detail:
+        "Chromium built-in AI echo stub detected ('On-device model is not available in Chromium'); real Gemini Nano weights require branded Google Chrome. Failing closed to deterministic local mode.",
+    };
+  }
   const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
   const lm = (globalThis as unknown as { LanguageModel?: BrowserLanguageModelApi }).LanguageModel;
 
@@ -297,7 +315,8 @@ export async function probeNanoReadiness(): Promise<{
  */
 export async function initializeOnDeviceModelWithGesture(
   onProgress?: (progressPct: number) => void,
-  firebaseConfig?: Partial<FirebaseRuntimeConfig> | null
+  firebaseConfig?: Partial<FirebaseRuntimeConfig> | null,
+  interactiveTimeoutMs = 10_000
 ): Promise<{
   status: "READY" | "DOWNLOADING_STARTED" | "UNAVAILABLE" | "ERROR";
   detail: string;
@@ -310,17 +329,72 @@ export async function initializeOnDeviceModelWithGesture(
         "Chrome Prompt API (self.LanguageModel) is not exposed. Enable Desktop Chrome v139+ and chrome://flags ('Gemma 4 for Built-in AI' and '#prompt-api-for-gemini-nano-multimodal-input').",
     };
   }
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const ai = getLocalOnlyFirebaseAI(firebaseConfig);
+    const verifyNotChromiumEchoStub = async (): Promise<boolean> => {
+      try {
+        const smoke = await createCompactOnDeviceModel(ai).generateContent("OK");
+        if (isChromiumEchoStubResponse(smoke.response.text())) {
+          detectedChromiumEchoStub = true;
+          return true;
+        }
+      } catch {
+        // Ignore transient smoke failure; real availability decides readiness
+      }
+      return false;
+    };
+
+    const initialAvail = await lm.availability();
+    if (initialAvail === "available") {
+      if (await verifyNotChromiumEchoStub()) {
+        return {
+          status: "UNAVAILABLE",
+          detail:
+            "Chromium echo stub detected ('On-device model is not available in Chromium, this API is just echoing back the input'). Use branded Google Chrome with Gemini Nano weights installed; failing closed to deterministic local mode with 0 cloud packets.",
+        };
+      }
+      onProgress?.(100);
+      return {
+        status: "READY",
+        detail: "Chrome Gemini Nano ready on-device via Firebase AI Logic ONLY_ON_DEVICE.",
+      };
+    }
+
     const model = createOnDeviceEntityModel(ai, ENTITY_SYSTEM_PROMPT);
-    await model.initializeDeviceModel((progressValue: number) => {
+    let latestPct = 0;
+
+    const initPromise = model.initializeDeviceModel((progressValue: number) => {
       const pct = Math.round(progressValue * 10000) / 100;
+      latestPct = pct;
       onProgress?.(pct);
     });
+    initPromise.catch(() => undefined);
+
+    const outcome = await Promise.race([
+      initPromise.then(() => "COMPLETED" as const),
+      new Promise<"TIMED_OUT">((resolve) => {
+        timer = setTimeout(() => resolve("TIMED_OUT"), interactiveTimeoutMs);
+      }),
+    ]);
+
     const post = await probeNanoReadiness();
     if (post.state === "READY_ON_DEVICE") {
+      if (await verifyNotChromiumEchoStub()) {
+        return {
+          status: "UNAVAILABLE",
+          detail:
+            "Chromium echo stub detected ('On-device model is not available in Chromium, this API is just echoing back the input'). Use branded Google Chrome with Gemini Nano weights installed; failing closed to deterministic local mode with 0 cloud packets.",
+        };
+      }
       onProgress?.(100);
       return { status: "READY", detail: post.detail };
+    }
+    if (outcome === "TIMED_OUT") {
+      return {
+        status: "DOWNLOADING_STARTED",
+        detail: `Chrome accepted model download request via Firebase AI Logic (initializeDeviceModel), but browser weight delivery is currently at ${latestPct}% (check chrome://on-device-internals / chrome://components). Failing closed to deterministic local extraction with 0 cloud packets.`,
+      };
     }
     return {
       status: "DOWNLOADING_STARTED",
@@ -331,6 +405,10 @@ export async function initializeOnDeviceModelWithGesture(
       status: "ERROR",
       detail: `Firebase initializeDeviceModel failed safely without cloud fallback: ${String(err).slice(0, 180)}`,
     };
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
   }
 }
 
@@ -351,6 +429,68 @@ function extractJsonArrayFromModelText(rawText: string): Array<{ v?: unknown; t?
     throw new Error("Invalid non-array Firebase on-device entity schema");
   }
   return parsed as Array<{ v?: unknown; t?: unknown; c?: unknown }>;
+}
+
+function extractGroundedEntitiesFromRawNanoOutput(
+  rawResponse: string,
+  chunk: TextChunk
+): NanoChunkResult["verifiedEntities"] {
+  const candidates: Array<{ surface: string; category: EntityCategory; confidence: number }> = [];
+  try {
+    const parsed = extractJsonArrayFromModelText(rawResponse);
+    for (const item of parsed) {
+      if (!item || typeof item.v !== "string" || item.v.length < 2) continue;
+      const cat: EntityCategory =
+        item.t === "PERSON" || item.t === "CODENAME" || item.t === "ADDRESS" ? item.t : "ORG";
+      const conf = typeof item.c === "number" ? Math.min(1, Math.max(0, item.c)) : 0.75;
+      candidates.push({ surface: item.v, category: cat, confidence: conf });
+    }
+  } catch {
+    const seen = new Set<string>();
+    const addCandidate = (rawStr: string, confidence: number): void => {
+      const s = rawStr.trim();
+      if (s.length < 3 || seen.has(s) || !chunk.text.includes(s)) return;
+      if (s.includes(" ") && s === s.toUpperCase()) return;
+      seen.add(s);
+      const category: EntityCategory = /^Dr\.?\s+[A-Z]/.test(s)
+        ? "PERSON"
+        : /^Project\s+[A-Z]|^Operation\s+[A-Z]/i.test(s)
+          ? "CODENAME"
+          : "ORG";
+      candidates.push({ surface: s, category, confidence });
+    };
+    for (const m of rawResponse.matchAll(/"([^"\n]{3,90})"/g)) {
+      addCandidate(m[1], 0.72);
+    }
+    for (const m of rawResponse.matchAll(/\b([A-Z][A-Za-z0-9.&'-]+(?:\s+(?:of|and|the|[A-Z][A-Za-z0-9.&'-]+)){1,6})\b/g)) {
+      addCandidate(m[1], 0.68);
+    }
+  }
+
+  const verified: NanoChunkResult["verifiedEntities"] = [];
+  const usedIntervals: Array<[number, number]> = [];
+  for (const cand of candidates) {
+    let searchFrom = 0;
+    while (searchFrom <= chunk.text.length - cand.surface.length) {
+      const idx = chunk.text.indexOf(cand.surface, searchFrom);
+      if (idx === -1) break;
+      const normStart = chunk.normStart + idx;
+      const normEnd = normStart + cand.surface.length;
+      const overlaps = usedIntervals.some(([s, e]) => !(normEnd <= s || normStart >= e));
+      if (!overlaps) {
+        usedIntervals.push([normStart, normEnd]);
+        verified.push({
+          surface: cand.surface,
+          category: cand.category,
+          confidence: cand.confidence,
+          normStart,
+          normEnd,
+        });
+      }
+      searchFrom = idx + cand.surface.length;
+    }
+  }
+  return verified;
 }
 
 /**
@@ -396,9 +536,32 @@ export async function runChunkOnDeviceNano(
 
   try {
     const ai = getLocalOnlyFirebaseAI(opts.firebaseConfig);
-    const model = createOnDeviceEntityModel(ai, ENTITY_SYSTEM_PROMPT);
-    const fencedPrompt = `<untrusted_contract_chunk index="${chunk.chunkIndex}">\n${chunk.text}\n</untrusted_contract_chunk>`;
-    const result = await model.generateContent(fencedPrompt, { signal: ac.signal });
+    let result;
+    try {
+      const model = createOnDeviceEntityModel(ai, ENTITY_SYSTEM_PROMPT);
+      const fencedPrompt = `<untrusted_contract_chunk index="${chunk.chunkIndex}">\n${chunk.text}\n</untrusted_contract_chunk>`;
+      result = await model.generateContent(fencedPrompt, { signal: ac.signal });
+    } catch (firstErr) {
+      if (!/QuotaExceededError|too large|input|constraint|schema/i.test(String(firstErr))) {
+        throw firstErr;
+      }
+      const compactModel = createCompactOnDeviceModel(ai);
+      const snippet = chunk.text.slice(0, 300);
+      try {
+        result = await compactModel.generateContent(
+          `Return JSON array [{"v":"Name","t":"ORG"}] of organizations and people in: ${snippet}`,
+          { signal: ac.signal }
+        );
+      } catch (secondErr) {
+        if (!/QuotaExceededError|too large|input/i.test(String(secondErr))) {
+          throw secondErr;
+        }
+        result = await compactModel.generateContent(
+          `List names in: ${chunk.text.slice(0, 120)}`,
+          { signal: ac.signal }
+        );
+      }
+    }
 
     if (result.response.inferenceSource !== InferenceSource.ON_DEVICE) {
       throw new Error(
@@ -407,29 +570,19 @@ export async function runChunkOnDeviceNano(
     }
 
     const rawResponse = result.response.text();
-    const parsed = extractJsonArrayFromModelText(rawResponse);
-
-    const verified: NanoChunkResult["verifiedEntities"] = [];
-    for (const item of parsed) {
-      if (!item || typeof item.v !== "string" || item.v.length < 2) continue;
-      // Strict verbatim substring grounding across all occurrences inside source chunk
-      const cat: EntityCategory =
-        item.t === "PERSON" || item.t === "CODENAME" || item.t === "ADDRESS" ? item.t : "ORG";
-      const conf = typeof item.c === "number" ? Math.min(1, Math.max(0, item.c)) : 0.75;
-      let searchFrom = 0;
-      while (searchFrom <= chunk.text.length - item.v.length) {
-        const idx = chunk.text.indexOf(item.v, searchFrom);
-        if (idx === -1) break;
-        verified.push({
-          surface: item.v,
-          category: cat,
-          confidence: conf,
-          normStart: chunk.normStart + idx,
-          normEnd: chunk.normStart + idx + item.v.length,
-        });
-        searchFrom = idx + item.v.length;
-      }
+    if (isChromiumEchoStubResponse(rawResponse)) {
+      detectedChromiumEchoStub = true;
+      return {
+        chunkIndex: chunk.chunkIndex,
+        inferenceSource: "DEGRADED_DETERMINISTIC_SAFE",
+        verifiedEntities: [],
+        suspiciousZeroDetection: hasInjectionCue,
+        unverifiedManualReview: hasInjectionCue,
+        warning:
+          "Browser exposed Chromium echo stub instead of real Gemini Nano weights; failing closed to deterministic local mode with 0 cloud packets.",
+      };
     }
+    const verified = extractGroundedEntitiesFromRawNanoOutput(rawResponse, chunk);
 
     const wordCount = chunk.text.split(/\s+/).length;
     const suspiciousZero = verified.length === 0 && (wordCount > 400 || hasInjectionCue);
@@ -449,8 +602,8 @@ export async function runChunkOnDeviceNano(
       chunkIndex: chunk.chunkIndex,
       inferenceSource: "DEGRADED_DETERMINISTIC_SAFE",
       verifiedEntities: [],
-      suspiciousZeroDetection: true,
-      unverifiedManualReview: true,
+      suspiciousZeroDetection: hasInjectionCue,
+      unverifiedManualReview: hasInjectionCue,
       warning: `Firebase ONLY_ON_DEVICE chunk failed safely without cloud fallback: ${String(err).slice(0, 140)}`,
     };
   } finally {
@@ -472,8 +625,15 @@ export async function runLocalSingleClauseTriage(
     if (readiness.state === "READY_ON_DEVICE") {
       const ai = getLocalOnlyFirebaseAI(opts.firebaseConfig);
       const model = createOnDeviceTriageModel(ai, TRIAGE_SYSTEM_PROMPT);
-      const result = await model.generateContent(`<untrusted_clause>\n${clauseText.slice(0, 2500)}\n</untrusted_clause>`);
+      const result = await model.generateContent(
+        `Summarize contract liability risk in one short sentence: ${clauseText.slice(0, 260)}`
+      );
       if (result.response.inferenceSource === InferenceSource.ON_DEVICE) {
+        const rawTriage = result.response.text();
+        if (isChromiumEchoStubResponse(rawTriage)) {
+          detectedChromiumEchoStub = true;
+          throw new Error("Chromium echo stub rejected");
+        }
         return {
           findingId: "LOCAL-TRIAGE-1",
           severity: /unlimited|uncapped|excluding/i.test(clauseText) ? "HIGH" : "MEDIUM",
@@ -482,7 +642,7 @@ export async function runLocalSingleClauseTriage(
           anonymizedExcerpt: clauseText.slice(0, 240),
           rehydratedExcerpt: clauseText.slice(0, 240),
           unmappedTokens: [],
-          rationale: result.response.text(),
+          rationale: rawTriage,
           analysisSource: "FIREBASE_AI_LOGIC_ONLY_ON_DEVICE_TRIAGE",
           observedInferenceSource: "on_device",
           modelUsed: "gemini-nano-prompt-api",
