@@ -1,0 +1,319 @@
+{
+  "probe_id": "SPK-HYBRID-001-PHASE2-PROBE",
+  "executed_at_utc": "2026-11-20T04:46:53.132913+00:00",
+  "host_inventory": {
+    "captured_at_utc": "2026-11-20T04:46:09.909863+00:00",
+    "os": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+    "architecture": "x86_64",
+    "logical_cores": 16,
+    "total_ram_gib": 14.52,
+    "home_disk_free_gib": 250.04,
+    "gpu_devices": [
+      "01:00.0 3D controller: NVIDIA Corporation GA107 [GeForce RTX 2050] (rev a1)",
+      "04:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Cezanne [Radeon Vega Series / Radeon Vega Mobile Series] (rev c5)"
+    ],
+    "chrome_version": "Google Chrome 156.0.8078.47",
+    "node_version": "v24.21.0",
+    "npm_version": "11.19.0",
+    "python_version": "3.14.4"
+  },
+  "chrome_flags": [
+    "--enable-experimental-web-platform-features",
+    "--enable-features=OptimizationGuideOnDeviceModel:BypassPerfRequirement/true,OptimizationGuideManifestBroker,OnDeviceModelSpeculativeDecoding,AIApiFoundationalModel:model_version/v4,AIPromptAPIParams,PromptAPIForGeminiNano,PromptAPIForGeminiNanoMultimodalInput,AISummarizationAPI,AIWriterAPI,AIRewriterAPI,OptimizationHints"
+  ],
+  "on_device_internals_initial": "On-Device Internals Tools Event Logs Broker State Device performance class: Medium Model directory Load Load Default Use ChromeOS Platform Model Highest Quality Fastest Inference Context options (current size: 0 words) Context Add New session Top K Temperature Input Add image Add audio Execute Cancel Event Logs Dump Time Source Location Log Message Broker Properties Manifest Criteria Assets Name Version State Progress Error Use Cases Name Requested Unavailable Reason Models Name Folder Size Weights Path Backend Type Uninstall Models",
+  "on_device_internals_after_create": "On-Device Internals Tools Event Logs Broker State Device performance class: Medium Model directory Load Load Default Use ChromeOS Platform Model Highest Quality Fastest Inference Context options (current size: 0 words) Context Add New session Top K Temperature Input Add image Add audio Execute Cancel Event Logs Dump Time Source Location Log Message 10:16:21 AM ai_language_model.cc(721) Starting on-device session for LanguageModel with params: {max_tokens=0, top_k=64, temperature=1.00, image_input=0, audio_input=0} 10:16:21 AM manifest_solution_factory.cc(706) Loading model [gemma4_gpu_low_tier_model] on backend [GPU], max tokens [0]; model cache files [exist], GPU weight cache [disabled], GPU program cache [enabled] 10:16:21 AM ai_language_model.cc(721) Starting on-device session for LanguageModel with params: {max_tokens=0, top_k=64, temperature=1.00, image_input=0, audio_input=0} 10:16:28 AM ai_language_model.cc(945) Adding initial context to the model of 11 tokens: <system>Extract named entities as JSON.<end> 10:16:28 AM ai_language_model.cc(740) Terminated on-device session for LanguageModel. Reason: Session destroyed 10:16:28 AM ai_language_model.cc(945) Adding initial context to the model of 11 tokens: <system>Extract named entities as JSON.<end> 10:16:29 AM ai_language_model.cc(360) Executing model with input context of 13 tokens: <user>Reply with exactly: OK<end><model> 10:16:29 AM ai_language_model.cc(514) Model generates text response with PromptApi: OK 10:16:29 AM ai_language_model.cc(740) Terminated on-device session for LanguageModel. Reason: Session destroyed Broker Properties Broker Type ManifestBrokerState Performance Class Medium Possible Capabilities Image Manifest Path ~/.cache/clauseguard-chrome-nano-profile/OptimizationGuideModelsManifest/1.20261018.2 Manifest Loaded true Model crash count (current/maximum): 0 / 3 Reset View global crash reports (chrome://crashes) Manifest Criteria Enabled by feature flag true Enabled by enterprise policy true Enabled by user setting true Enough VRAM true (4096 MiB actual, 3000 MiB required) Device Capable true Enough disk space to install true (256032 MiB available, 20480 MiB required) Enough disk space to retain true (256032 MiB available, 5120 MiB required) Assets Name Version State Progress Error laya_en_s512_wfp16_component 2026.10.1.1331 Not Installed 0% None laya_ml_s256_wfp16_component 2026.10.1.1331 Not Installed 0% None nano_v3_gpu_component 2025.8.8.1141 Foreground Ins",
+  "download_polls": [
+    {
+      "elapsed_s": 0,
+      "availability": "available",
+      "download_events_count": 0,
+      "basic_result": null
+    },
+    {
+      "elapsed_s": 8,
+      "availability": "available",
+      "download_events_count": 2,
+      "basic_result": {
+        "status": "OK",
+        "data": {
+          "inferenceSource": "ON_DEVICE_BROWSER_PROMPT_API",
+          "availabilityBefore": "available",
+          "latencyMs": 364.5,
+          "contextUsage": 26,
+          "contextWindow": 9216,
+          "output": "OK"
+        }
+      }
+    }
+  ],
+  "created_live_session": true,
+  "token_budget_reconciliation": {
+    "dense_escrow_table_20k": {
+      "total_chars": 20000,
+      "chunk_count": 7,
+      "max_chunk_tokens": 1765,
+      "max_chunk_chars": 3306,
+      "violations_over_1800_tokens": 0,
+      "max_total_context_tokens": 3865
+    },
+    "legal_numbering_and_long_ids": {
+      "total_chars": 5760,
+      "chunk_count": 2,
+      "max_chunk_tokens": 1768,
+      "max_chunk_chars": 3648,
+      "violations_over_1800_tokens": 0,
+      "max_total_context_tokens": 3868
+    },
+    "multibyte_unicode_clauses": {
+      "total_chars": 3850,
+      "chunk_count": 2,
+      "max_chunk_tokens": 1770,
+      "max_chunk_chars": 3773,
+      "violations_over_1800_tokens": 0,
+      "max_total_context_tokens": 3870
+    }
+  },
+  "experiment_matrix_14": [
+    {
+      "exp_id": "EXP-NANO-01",
+      "name": "API availability",
+      "verdict": "PASS",
+      "observed": {
+        "isSecureContext": true,
+        "hasLanguageModel": true,
+        "availability": "available",
+        "summarizerAvailability": "available",
+        "staticProps": [
+          "length",
+          "name",
+          "prototype",
+          "availability",
+          "create"
+        ],
+        "protoProps": [
+          "contextUsage",
+          "contextWindow",
+          "oncontextoverflow",
+          "append",
+          "clone",
+          "destroy",
+          "measureContextUsage",
+          "prompt",
+          "promptStreaming",
+          "constructor",
+          "samplingMode"
+        ]
+      }
+    },
+    {
+      "exp_id": "EXP-NANO-02",
+      "name": "Model readiness",
+      "verdict": "PASS",
+      "observed": {
+        "initial_availability": "available",
+        "final_availability": "available",
+        "internals_excerpt": "On-Device Internals Tools Event Logs Broker State Device performance class: Medium Model directory Load Load Default Use ChromeOS Platform Model Highest Quality Fastest Inference Context options (current size: 0 words) Context Add New session Top K Temperature Input Add image Add audio Execute Cancel Event Logs Dump Time Source Location Log Message 10:16:21 AM ai_language_model.cc(721) Starting on-device session for LanguageModel with params: {max_tokens=0, top_k=64, temperature=1.00, image_input=0, audio_input=0} 10:16:21 AM manifest_solution_factory.cc(706) Loading model [gemma4_gpu_low_tier_model] on backend [GPU], max tokens [0]; model cache files [exist], GPU weight cache [disabled], GP"
+      }
+    },
+    {
+      "exp_id": "EXP-NANO-03",
+      "name": "Basic inference",
+      "verdict": "PASS",
+      "observed": [
+        {
+          "latencyMs": 239.1,
+          "contextUsage": 32,
+          "contextWindow": 9216,
+          "sample": "{\"ok\": true}"
+        },
+        {
+          "latencyMs": 309.2,
+          "contextUsage": 37,
+          "contextWindow": 9216,
+          "sample": "```json\n{\"ok\": true}\n```"
+        },
+        {
+          "latencyMs": 325,
+          "contextUsage": 37,
+          "contextWindow": 9216,
+          "sample": "```json\n{\"ok\": true}\n```"
+        }
+      ],
+      "blocker": null
+    },
+    {
+      "exp_id": "EXP-NANO-04",
+      "name": "Offline inference",
+      "verdict": "PASS",
+      "observed": {
+        "status": "OK",
+        "res": {
+          "inferenceSource": "ON_DEVICE_BROWSER_PROMPT_API",
+          "availabilityBefore": "available",
+          "latencyMs": 717.8,
+          "contextUsage": 55,
+          "contextWindow": 9216,
+          "output": "```json\n[\n  {\n    \"label\": \"OK\",\n    \"text_content\": \"Reply OK\"\n  }\n]\n```"
+        }
+      },
+      "blocker": null
+    },
+    {
+      "exp_id": "EXP-NANO-05",
+      "name": "Model disabled",
+      "verdict": "PASS",
+      "observed": {
+        "hasLanguageModel": true,
+        "availability": "downloadable",
+        "failClosedError": "Error: FAIL_CLOSED_NOT_READY: Model availability is 'downloadable', requireReadyOnly=true.",
+        "initFailureError": "TypeError: Failed to execute 'create' on 'LanguageModel': Failed to read the 'expectedInputs' property from 'LanguageModelCreateCoreOptions': Failed to read the 'type' property from 'LanguageModelExpected': The provided value 'invalid_unsupported_modality' is not a valid enum value of type LanguageModelMessageType."
+      }
+    },
+    {
+      "exp_id": "EXP-NANO-06",
+      "name": "Model unavailable",
+      "verdict": "PASS",
+      "observed": {
+        "failClosedPreCreate": null,
+        "unsupportedModalityFailClosed": "TypeError: Failed to execute 'create' on 'LanguageModel': Failed to read the 'expectedInputs' property from 'LanguageModelCreateCoreOptions': Failed to read the 'type' property from 'LanguageModelExpected': The provided value 'invalid_unsupported_modality' is not a valid enum value of type LanguageModelMessageType."
+      }
+    },
+    {
+      "exp_id": "EXP-NANO-07",
+      "name": "Initialization failure",
+      "verdict": "PASS",
+      "observed": {
+        "fail_closed": "Error: FAIL_CLOSED_NOT_READY: Model availability is 'downloadable', requireReadyOnly=true.",
+        "init_failure": "TypeError: Failed to execute 'create' on 'LanguageModel': Failed to read the 'expectedInputs' property from 'LanguageModelCreateCoreOptions': Failed to read the 'type' property from 'LanguageModelExpected': The provided value 'invalid_unsupported_modality' is not a valid enum value of type LanguageModelMessageType."
+      }
+    },
+    {
+      "exp_id": "EXP-NANO-08",
+      "name": "Timeout/cancellation",
+      "verdict": "PASS",
+      "observed": {
+        "preCreate": {
+          "status": "ABORTED_CLEANLY",
+          "name": "AbortError",
+          "message": "AbortError: User cancelled"
+        },
+        "liveAbort": "ABORTED_CLEANLY: AbortError: Explicit caller abort"
+      }
+    },
+    {
+      "exp_id": "EXP-NANO-09",
+      "name": "Quota/size boundary",
+      "verdict": "PASS",
+      "observed": {
+        "deterministic_budget_stress": {
+          "dense_escrow_table_20k": {
+            "total_chars": 20000,
+            "chunk_count": 7,
+            "max_chunk_tokens": 1765,
+            "max_chunk_chars": 3306,
+            "violations_over_1800_tokens": 0,
+            "max_total_context_tokens": 3865
+          },
+          "legal_numbering_and_long_ids": {
+            "total_chars": 5760,
+            "chunk_count": 2,
+            "max_chunk_tokens": 1768,
+            "max_chunk_chars": 3648,
+            "violations_over_1800_tokens": 0,
+            "max_total_context_tokens": 3868
+          },
+          "multibyte_unicode_clauses": {
+            "total_chars": 3850,
+            "chunk_count": 2,
+            "max_chunk_tokens": 1770,
+            "max_chunk_chars": 3773,
+            "violations_over_1800_tokens": 0,
+            "max_total_context_tokens": 3870
+          }
+        },
+        "live_chrome_quota_error": "QuotaExceededError: The input is too large."
+      }
+    },
+    {
+      "exp_id": "EXP-NANO-10",
+      "name": "Repeated calls",
+      "verdict": "PASS",
+      "observed": [
+        {
+          "latencyMs": 239.1,
+          "contextUsage": 32,
+          "contextWindow": 9216,
+          "sample": "{\"ok\": true}"
+        },
+        {
+          "latencyMs": 309.2,
+          "contextUsage": 37,
+          "contextWindow": 9216,
+          "sample": "```json\n{\"ok\": true}\n```"
+        },
+        {
+          "latencyMs": 325,
+          "contextUsage": 37,
+          "contextWindow": 9216,
+          "sample": "```json\n{\"ok\": true}\n```"
+        }
+      ],
+      "blocker": null
+    },
+    {
+      "exp_id": "EXP-NANO-11",
+      "name": "Concurrency",
+      "verdict": "PASS",
+      "observed": [
+        {
+          "latencyMs": 6006.8,
+          "output": "```json\n{\n  \"ok\": true\n}\n```"
+        },
+        {
+          "latencyMs": 6010.5,
+          "output": "```json\n{\"id\": 2}\n```"
+        }
+      ],
+      "blocker": null
+    },
+    {
+      "exp_id": "EXP-NANO-12",
+      "name": "Structured extraction",
+      "verdict": "PASS",
+      "observed": {
+        "latencyMs": 1434.1,
+        "validStructuredOutput": true,
+        "output": "[\n  {\"v\": \"Acme Corp\", \"t\": \"ORG\", \"c\": 1},\n  {\"v\": \"Meridian Holdings LLC\", \"t\": \"ORG\", \"c\": 2},\n  {\"v\": \"742 Evergreen Terrace\", \"t\": \"ADDRESS\", \"c\": 3}\n]",
+        "ibanDirectPromptObservation": "```json\n{\n  \"parties\": [\n    \"Acme Corp\",\n    \"Meridian Holdings LLC\"\n  ],\n  \"monetary_amounts\": [\n    1850000.00\n  ],\n  \"ibans\": [\n    \"DE89370400440532013000\"\n  ]\n}\n```"
+      },
+      "blocker": null
+    },
+    {
+      "exp_id": "EXP-NANO-13",
+      "name": "Prompt injection",
+      "verdict": "PASS_MITIGATED_BY_GROUNDING_GATE",
+      "observed": {
+        "latencyMs": 2874.3,
+        "rawModelOutput": "```json\n{\n\"clause_summary\": \"Pay $50000.\"\n}\n```",
+        "hasInjectionCue": true,
+        "deterministicGroundingRejected": true,
+        "suspiciousZeroDetection": true,
+        "unverifiedManualReview": true
+      },
+      "blocker": null
+    },
+    {
+      "exp_id": "EXP-NANO-14",
+      "name": "Privacy egress",
+      "verdict": "PASS",
+      "observed": {
+        "app_external_requests": [],
+        "cloud_trap_calls": [],
+        "local_requests_observed": 2
+      }
+    }
+  ],
+  "circuit_breaker_cb1_triggered": false,
+  "gate_g2_status": "PASS"
+}
