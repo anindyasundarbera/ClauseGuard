@@ -3,159 +3,282 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://firebasevertexai.googleapis.com https://content-firebaseappcheck.googleapis.com https://firebaseappcheck.googleapis.com https://firebaseremoteconfig.googleapis.com https://firebaseinstallations.googleapis.com; frame-src https://www.google.com/recaptcha/; img-src 'self' data:; object-src 'none';" />
-  <title>ClauseGuard Hybrid — Privacy-First Firebase AI Logic Contract Airlock</title>
+  <title>ClauseGuard — Read the fine print privately</title>
   <link rel="stylesheet" href="./src/ui/styles.css" />
 </head>
 <body>
-  <header class="topbar" role="banner">
-    <div>
-      <h1>ClauseGuard Hybrid <span class="badge badge-primary">Firebase AI Logic</span></h1>
-      <p class="subtitle">On-Device Raw Extraction (<code>ONLY_ON_DEVICE</code>) &amp; SHA-256-Approved Cloud Risk Synthesis (<code>ONLY_IN_CLOUD</code>)</p>
-    </div>
-    <div class="readiness-box" aria-live="polite">
-      <div class="readiness-line">
-        <span class="label">Gemini Nano (<code>ONLY_ON_DEVICE</code>):</span>
-        <strong id="nano-readiness-badge" data-testid="nano-readiness-badge">CHECKING</strong>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="site-header" role="banner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true" focusable="false">
+        <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="currentColor" opacity=".16"/>
+        <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <circle cx="16" cy="13.5" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M16 16.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1 class="brand-name">ClauseGuard</h1>
+        <p class="tagline">Read the fine print. Keep your private details private.</p>
       </div>
-      <div id="nano-readiness-detail" class="small-note">Probing runtime...</div>
-      <div class="readiness-actions">
-        <button id="btn-init-nano" data-testid="btn-init-nano" type="button" class="btn-secondary btn-compact">Initialize / Download On-Device Model</button>
-        <span id="nano-download-progress" data-testid="nano-download-progress" class="small-note"></span>
-      </div>
     </div>
+    <button id="btn-purge" data-testid="btn-purge" class="btn btn-quiet" type="button">Clear everything</button>
   </header>
 
-  <section class="telemetry-strip" aria-label="Firebase AI Logic & App Check Runtime Status">
-    <span><strong>Firebase Project:</strong> <code id="firebase-project-badge" data-testid="firebase-project-badge">clauseguard-hybrid-1c5e2</code></span>
-    <span><strong>SDK:</strong> <code id="firebase-sdk-badge">firebase@13.4.0 (@firebase/ai@3.1.0)</code></span>
-    <span><strong>App Check:</strong> <code id="appcheck-status-badge" data-testid="appcheck-status-badge">LOCAL_ONLY_NO_CLOUD</code></span>
-    <span><strong>Cloud Model:</strong> <code id="cloud-model-badge" data-testid="cloud-model-badge">gemini-3.5-flash-lite</code></span>
-    <span><strong>Observed Source:</strong> <code id="observed-source-badge" data-testid="observed-source-badge">NONE</code></span>
-  </section>
+  <div class="status-bar" role="region" aria-label="Privacy status">
+    <div class="status-item">
+      <span id="device-ai-dot" class="dot dot-busy" aria-hidden="true"></span>
+      <span id="device-ai-headline" data-testid="device-ai-status" class="status-text">Checking for private AI on this device…</span>
+      <button id="btn-init-nano" data-testid="btn-init-nano" type="button" class="btn btn-small btn-outline" hidden>Set up private AI</button>
+      <span id="nano-download-progress" data-testid="nano-download-progress" class="status-help"></span>
+    </div>
+    <div class="status-item status-item-right">
+      <span id="cloud-dot" class="dot dot-neutral" aria-hidden="true"></span>
+      <span id="cloud-headline" class="status-text">Deeper check: practice mode</span>
+    </div>
+    <p id="device-ai-help" class="status-help">&nbsp;</p>
+  </div>
 
-  <section class="disclosure-banner" role="note">
-    <strong>Trust Boundary Guarantee:</strong> Raw contract files, source spans, and local redaction maps stay strictly in browser RAM unless you enable AES-GCM-256 Encrypted Workspace storage. <code>PREFER_ON_DEVICE</code> is banned for raw documents: if Chrome Gemini Nano weights are unavailable, raw analysis fails closed to deterministic local detectors with <strong>0 cloud packets</strong>. Cloud synthesis uses <code>InferenceMode.ONLY_IN_CLOUD</code> + Firebase App Check strictly on your SHA-256-approved sanitized payload.
-  </section>
+  <nav class="stepper-wrap" aria-label="Progress">
+    <ol class="stepper" id="stepper">
+      <li><button type="button" class="step" data-step="1" data-testid="step-1"><span class="step-num" aria-hidden="true">1</span><span class="step-label">Import</span></button></li>
+      <li><button type="button" class="step" data-step="2" data-testid="step-2"><span class="step-num" aria-hidden="true">2</span><span class="step-label">Review</span></button></li>
+      <li><button type="button" class="step" data-step="3" data-testid="step-3"><span class="step-num" aria-hidden="true">3</span><span class="step-label">Approve</span></button></li>
+      <li><button type="button" class="step" data-step="4" data-testid="step-4"><span class="step-num" aria-hidden="true">4</span><span class="step-label">Results</span></button></li>
+    </ol>
+  </nav>
 
-  <main class="grid-layout" role="main">
-    <!-- Left Column: Import, Mode, Local Detection & Airlock -->
-    <section class="panel" aria-labelledby="sec-ingest">
-      <h2 id="sec-ingest">1. Local Contract Import &amp; Privacy Mode</h2>
-      <p class="small-note">Supported local parsers: Digital PDF (<code>isEvalSupported: false</code>), DOCX, and TXT/MD. Start immediately with a synthetic contract or upload your own file.</p>
-      <div class="controls-row">
-        <label class="file-btn">
-          Import PDF / DOCX / TXT
-          <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
-        </label>
-        <select id="privacy-mode-select" data-testid="privacy-mode-select" aria-label="Privacy Mode">
-          <option value="LOCAL_ONLY">LOCAL_ONLY (0 Cloud Requests)</option>
-          <option value="DEGRADED_DETERMINISTIC_SAFE">DEGRADED_DETERMINISTIC_SAFE (Local Fail-Closed)</option>
-          <option value="HYBRID_ANONYMIZED">HYBRID_ANONYMIZED (Sanitized Cloud After Approval)</option>
-        </select>
-        <button id="btn-purge" data-testid="btn-purge" class="btn-danger" type="button">Purge Session &amp; Storage</button>
+  <main id="main" class="page" role="main">
+    <div id="busy-banner" class="banner banner-busy" role="status" aria-live="polite" hidden>
+      <span class="spinner" aria-hidden="true"></span><span id="busy-text">Working…</span>
+    </div>
+    <div id="error-box" data-testid="error-box" class="banner banner-error" role="alert" hidden></div>
+    <div id="notice-box" data-testid="notice-box" class="banner banner-info" role="status" aria-live="polite" hidden></div>
+    <div id="warnings-box" data-testid="warnings-box" class="banner banner-warn" role="status" aria-live="polite" hidden></div>
+
+    <!-- STEP 1: IMPORT -->
+    <section id="panel-1" class="panel" data-panel="1" aria-labelledby="h-1">
+      <p class="eyebrow">Step 1 of 4</p>
+      <h2 id="h-1" tabindex="-1">Bring in a document</h2>
+      <p class="lede">A lease, a medical bill, a contract. We read it <strong>on this device</strong>. Nothing is uploaded when you import it.</p>
+
+      <label class="dropzone" id="dropzone" for="file-input">
+        <span class="dropzone-title">Choose a file or drop it here</span>
+        <span class="dropzone-sub">PDF, Word (.docx) or text (.txt, .md)</span>
+        <span class="btn btn-primary dropzone-btn" aria-hidden="true">Choose a document</span>
+        <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
+      </label>
+
+      <h3 class="section-title">Or try a sample</h3>
+      <p class="muted">All samples are made up. Pick one to see how it works.</p>
+      <div class="sample-grid" id="sample-buttons" role="group" aria-label="Sample documents"></div>
+    </section>
+
+    <!-- STEP 2: REVIEW -->
+    <section id="panel-2" class="panel" data-panel="2" aria-labelledby="h-2" hidden>
+      <p class="eyebrow">Step 2 of 4</p>
+      <h2 id="h-2" tabindex="-1">Check what we found</h2>
+      <p class="lede" id="review-lede">We look for names, contact details, account numbers and amounts. The ones you hide are swapped for placeholders before anything can leave this device.</p>
+
+      <div id="review-empty" class="empty" hidden>
+        <p class="empty-title">No sensitive details were found.</p>
+        <p class="muted">That can be true, but automatic detection can miss things like names. Add any word or phrase you want hidden below, or continue.</p>
       </div>
 
-      <div class="samples-row" id="sample-buttons" aria-label="Synthetic Sample Contracts"></div>
-      <div id="warnings-box" data-testid="warnings-box" class="warnings-box" role="status" aria-live="polite" hidden></div>
+      <p class="tip"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people’s names. Scan the list, and add any name below.</p>
+      <div id="review-summary" class="summary-chips" aria-live="polite"></div>
+      <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
 
-      <h3>2. Editorial Trust Airlock (Grouped Entities &amp; Ephemeral Roles)</h3>
-      <p class="small-note">Review detected PII, secrets, organizations, banks, and caps. Any edit immediately invalidates prior cloud approval.</p>
-
-      <form id="manual-entity-form" class="manual-form">
-        <input id="manual-surface" type="text" placeholder="Exact phrase to mask everywhere..." spellcheck="false" autocomplete="off" aria-label="Exact phrase to mask" />
-        <select id="manual-category" aria-label="Entity Category">
-          <option value="ORG">ORG</option>
-          <option value="PERSON">PERSON</option>
-          <option value="CODENAME">CODENAME</option>
-          <option value="BANK">BANK</option>
-          <option value="CURRENCY_CAP">CURRENCY_CAP</option>
-        </select>
-        <select id="manual-role" aria-label="Document Role">
-          <option value="CLIENT">CLIENT</option>
-          <option value="VENDOR">VENDOR</option>
-          <option value="BUYER">BUYER</option>
-          <option value="TARGET">TARGET</option>
-          <option value="PARTY">PARTY</option>
-        </select>
-        <button id="btn-add-entity" type="submit" class="btn-secondary">Mask Phrase</button>
+      <form id="manual-entity-form" class="manual-form" aria-labelledby="manual-title">
+        <h3 id="manual-title" class="section-title">Hide something we missed</h3>
+        <p class="muted">Type it exactly as it appears. We hide every place it shows up.</p>
+        <div class="field-row">
+          <div class="field grow">
+            <label for="manual-surface">Word or phrase</label>
+            <input id="manual-surface" type="text" spellcheck="false" autocomplete="off" placeholder="For example: a person's name" />
+          </div>
+          <div class="field">
+            <label for="manual-category">What is it?</label>
+            <select id="manual-category">
+              <option value="PERSON">Person's name</option>
+              <option value="ORG">Company</option>
+              <option value="ADDRESS">Address</option>
+              <option value="BANK">Bank</option>
+              <option value="CODENAME">Project name</option>
+              <option value="CURRENCY_CAP">Money amount</option>
+            </select>
+          </div>
+          <button id="btn-add-entity" type="submit" class="btn btn-outline">Hide it everywhere</button>
+        </div>
       </form>
 
-      <div class="controls-row">
-        <button id="btn-accept-all" data-testid="btn-accept-all" type="button" class="btn-secondary">Accept All Pending Entities</button>
+      <div class="step-actions">
+        <button type="button" class="btn btn-ghost" data-go="1">Back</button>
+        <button id="btn-accept-all" data-testid="btn-accept-all" type="button" class="btn btn-primary">Hide all suggested items</button>
+        <button id="btn-review-continue" data-testid="btn-review-continue" type="button" class="btn btn-primary" hidden>Continue to approval</button>
       </div>
-      <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
     </section>
 
-    <!-- Right Column: Outgoing Sanitized Payload, Approval Gate, Findings & Privacy Report -->
-    <section class="panel" aria-labelledby="sec-payload">
-      <h2 id="sec-payload">3. Exact Outgoing Cloud Payload &amp; SHA-256 Gate</h2>
-      <div class="status-strip">
-        <span>Approval State: <strong id="approval-state" data-testid="approval-state">EMPTY</strong></span>
-        <span>Payload SHA-256: <code id="payload-sha" data-testid="payload-sha">NONE</code></span>
-      </div>
+    <!-- STEP 3: APPROVE -->
+    <section id="panel-3" class="panel" data-panel="3" aria-labelledby="h-3" hidden>
+      <p class="eyebrow">Step 3 of 4</p>
+      <h2 id="h-3" tabindex="-1">See exactly what leaves your device</h2>
+      <p class="lede" id="approve-lede">This is the full list. Your original document never leaves. Only the cleaned text shown here can be sent, and only if you approve it.</p>
 
-      <pre id="sanitized-preview" data-testid="sanitized-preview" class="payload-pre" spellcheck="false" translate="no">(Import a contract or select a synthetic sample to inspect the exact sanitized payload.)</pre>
+      <section class="ledger" id="ledger" data-testid="ledger" aria-labelledby="ledger-title">
+        <h3 id="ledger-title" class="ledger-title">What leaves your device</h3>
+        <p id="ledger-status" data-testid="ledger-status" class="ledger-status">Nothing has been sent.</p>
+        <div class="ledger-grid">
+          <div class="ledger-col ledger-local">
+            <h4><span class="lock" aria-hidden="true">&#128274;</span> Stays on this device</h4>
+            <p class="big-number"><span id="count-hidden" data-testid="count-hidden">0</span> <span class="big-label">items hidden</span></p>
+            <ul id="ledger-local-list" class="ledger-list"></ul>
+            <p id="ledger-visible-note" class="ledger-visible" hidden></p>
+            <p class="muted small" id="ledger-original-note">Your original document stays in this tab’s memory.</p>
+          </div>
+          <div class="ledger-col ledger-out">
+            <h4>Would be sent, exactly as shown</h4>
+            <pre id="sanitized-preview" data-testid="sanitized-preview" class="payload" tabindex="0" aria-label="Exact cleaned text that can be sent" spellcheck="false" translate="no"></pre>
+            <p class="muted small" id="payload-size-note"></p>
+          </div>
+        </div>
+      </section>
 
-      <div class="approval-gate">
-        <label class="consent-check">
-          <input id="chk-explicit-consent" data-testid="chk-explicit-consent" type="checkbox" />
-          <span>I have inspected the exact sanitized payload above and approve sending ONLY this anonymized text via Firebase AI Logic (<code>ONLY_IN_CLOUD</code>) for cross-clause risk synthesis.</span>
-        </label>
-
-        <div class="cloud-config-row">
-          <label for="cloud-model-select">Cloud Model:</label>
-          <select id="cloud-model-select" data-testid="cloud-model-select" aria-label="Supported Firebase Cloud Model">
-            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (SDK Default, Free Tier)</option>
-            <option value="gemini-3.8-flash">gemini-3.8-flash (Frontier Free Tier)</option>
-            <option value="gemini-4-hydrogen">gemini-4-hydrogen (Flagship Efficiency, Free Tier)</option>
+      <div class="approve-box">
+        <div class="field">
+          <label for="privacy-mode-select">Where should the deeper check run?</label>
+          <select id="privacy-mode-select" data-testid="privacy-mode-select">
+            <option value="LOCAL_ONLY">On this device only. Nothing is sent.</option>
+            <option value="DEGRADED_DETERMINISTIC_SAFE">On this device only (safe fallback). Nothing is sent.</option>
+            <option value="HYBRID_ANONYMIZED">Send the cleaned text for a deeper check, after I approve</option>
           </select>
-          <label class="inline-check">
-            <input id="chk-sim-cloud" type="checkbox" checked />
-            Allow Labeled Local Simulated Synthesis (when no Firebase config loaded)
-          </label>
         </div>
 
-        <details class="firebase-drawer">
-          <summary>Firebase Project, App Check &amp; Remote Config Setup (Optional Live Cloud Override)</summary>
-          <p class="small-note">Configure via <code>.env</code> (see <code>.env.example</code>) or paste your Firebase Web Config JSON in RAM below. Never share or commit App Check debug tokens.</p>
-          <textarea id="firebase-config-json" data-testid="firebase-config-json" rows="4" placeholder='{"apiKey":"...","projectId":"...","appId":"..."}' spellcheck="false"></textarea>
-          <div class="cloud-config-row">
-            <input id="recaptcha-site-key" type="text" placeholder="Production reCAPTCHA Enterprise Site Key (or leave blank for localhost debug)" autocomplete="off" />
-            <label class="inline-check">
-              <input id="chk-debug-appcheck" type="checkbox" />
-              Localhost App Check Debug Token Mode
-            </label>
-          </div>
-          <div class="actions-row">
-            <button id="btn-apply-firebase" data-testid="btn-apply-firebase" type="button" class="btn-secondary">Apply Firebase Config in RAM</button>
-            <button id="btn-sync-remote-config" data-testid="btn-sync-remote-config" type="button" class="btn-secondary">Sync Guardrailed Remote Config</button>
-          </div>
-        </details>
-
-        <div class="actions-row">
-          <button id="btn-approve-payload" data-testid="btn-approve-payload" class="btn-primary" type="button" disabled>1. Approve Exact Payload</button>
-          <button id="btn-analyze-cloud" data-testid="btn-analyze-cloud" class="btn-primary" type="button" disabled>2. Analyze Sanitized Payload</button>
-          <button id="btn-local-triage" data-testid="btn-local-triage" class="btn-secondary" type="button" disabled>Local ONLY_ON_DEVICE Triage</button>
-        </div>
+        <label class="consent-check" for="chk-explicit-consent">
+          <input id="chk-explicit-consent" data-testid="chk-explicit-consent" type="checkbox" />
+          <span>I read the cleaned text above. I approve sending <strong>only this text</strong> for the deeper check.</span>
+        </label>
+        <p id="approve-hint" class="muted small" aria-live="polite"></p>
       </div>
 
-      <h3>4. Cross-Clause Risk Findings &amp; Local Rehydration</h3>
-      <div id="findings-list" data-testid="findings-list" class="findings-list"></div>
-
-      <h3>5. Optional Encrypted Workspace Vault &amp; 16-Field Privacy Report</h3>
-      <div class="vault-row">
-        <input id="vault-workspace-id" type="text" value="default-client-workspace" aria-label="Workspace ID" />
-        <input id="vault-passphrase" type="password" placeholder="Passphrase (&gt;=8 chars) for AES-GCM IDB" aria-label="Workspace Passphrase" />
-        <button id="btn-save-vault" type="button" class="btn-secondary">Commit Approved to Encrypted Vault</button>
-        <button id="btn-unlock-vault" type="button" class="btn-secondary">Unlock Vault</button>
+      <div class="step-actions">
+        <button type="button" class="btn btn-ghost" data-go="2">Back to review</button>
+        <button id="btn-local-triage" data-testid="btn-local-triage" class="btn btn-outline" type="button" disabled>Check on this device only</button>
+        <button id="btn-approve-payload" data-testid="btn-approve-payload" class="btn btn-primary" type="button" disabled>Approve this exact text</button>
+        <button id="btn-analyze-cloud" data-testid="btn-analyze-cloud" class="btn btn-primary" type="button" disabled hidden>Run the deeper check</button>
       </div>
-      <div class="actions-row">
-        <button id="btn-export-report" data-testid="btn-export-report" type="button" class="btn-secondary">Download 16-Field Privacy Report JSON</button>
-      </div>
-      <pre id="privacy-report-pre" data-testid="privacy-report-pre" class="report-pre"></pre>
     </section>
+
+    <!-- STEP 4: RESULTS -->
+    <section id="panel-4" class="panel" data-panel="4" aria-labelledby="h-4" hidden>
+      <p class="eyebrow">Step 4 of 4</p>
+      <h2 id="h-4" tabindex="-1">What to watch out for</h2>
+      <p class="lede" id="results-lede">Results use your real names and numbers again, restored on this device only.</p>
+      <div id="results-source" class="source-note" hidden></div>
+      <div id="findings-empty" class="empty">
+        <p class="empty-title">No results yet.</p>
+        <p class="muted">Approve the cleaned text and run the deeper check, or check on this device only.</p>
+      </div>
+      <div id="findings-list" data-testid="findings-list" class="findings-list"></div>
+      <p class="disclaimer">ClauseGuard highlights things worth asking about. It is not legal, medical or financial advice and can miss things.</p>
+      <div class="step-actions">
+        <button type="button" class="btn btn-ghost" data-go="3">Back</button>
+        <button id="btn-export-report" data-testid="btn-export-report" type="button" class="btn btn-outline">Download privacy report</button>
+        <button id="btn-new-document" data-testid="btn-new-document" type="button" class="btn btn-primary">Check another document</button>
+      </div>
+    </section>
+
+    <!-- UNDER THE HOOD -->
+    <details class="hood" id="hood">
+      <summary>Under the hood <span class="hood-sub">for developers and the curious</span></summary>
+      <div class="hood-body">
+        <section aria-labelledby="hood-device">
+          <h3 id="hood-device">On-device AI</h3>
+          <dl class="kv">
+            <div><dt>Runtime state</dt><dd><code id="nano-readiness-badge" data-testid="nano-readiness-badge">CHECKING</code></dd></div>
+            <div><dt>Detail</dt><dd id="nano-readiness-detail">Probing runtime…</dd></div>
+            <div><dt>Inference mode</dt><dd><code>ONLY_ON_DEVICE</code> for raw text; fails closed to <code>DEGRADED_DETERMINISTIC_SAFE</code></dd></div>
+          </dl>
+        </section>
+
+        <section aria-labelledby="hood-fb">
+          <h3 id="hood-fb">Firebase AI Logic</h3>
+          <dl class="kv">
+            <div><dt>Project</dt><dd><code id="firebase-project-badge" data-testid="firebase-project-badge">UNCONFIGURED</code></dd></div>
+            <div><dt>SDK</dt><dd><code id="firebase-sdk-badge">firebase</code></dd></div>
+            <div><dt>App Check</dt><dd><code id="appcheck-status-badge" data-testid="appcheck-status-badge">LOCAL_ONLY_NO_CLOUD</code></dd></div>
+            <div><dt>Cloud model</dt><dd><code id="cloud-model-badge" data-testid="cloud-model-badge">gemini-3.5-flash-lite</code></dd></div>
+            <div><dt>Last observed source</dt><dd><code id="observed-source-badge" data-testid="observed-source-badge">NONE</code></dd></div>
+            <div><dt>Cloud inference mode</dt><dd><code>ONLY_IN_CLOUD</code></dd></div>
+          </dl>
+          <div class="field">
+            <label for="cloud-model-select">Cloud model</label>
+            <select id="cloud-model-select" data-testid="cloud-model-select">
+              <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (SDK default, free tier)</option>
+              <option value="gemini-3.8-flash">gemini-3.8-flash (frontier, free tier)</option>
+              <option value="gemini-4-hydrogen">gemini-4-hydrogen (flagship efficiency, free tier)</option>
+            </select>
+          </div>
+          <label class="inline-check" for="chk-sim-cloud">
+            <input id="chk-sim-cloud" type="checkbox" checked />
+            <span>Allow clearly labeled local simulation when no Firebase project is configured</span>
+          </label>
+          <details class="sub">
+            <summary>Firebase project, App Check and Remote Config</summary>
+            <p class="muted small">Configure via <code>.env</code> (see <code>.env.example</code>) or paste a Firebase web config in memory. Never share or commit App Check debug tokens.</p>
+            <div class="field">
+              <label for="firebase-config-json">Firebase web config (JSON)</label>
+              <textarea id="firebase-config-json" data-testid="firebase-config-json" rows="4" placeholder='{"apiKey":"...","projectId":"...","appId":"..."}' spellcheck="false"></textarea>
+            </div>
+            <div class="field">
+              <label for="recaptcha-site-key">reCAPTCHA Enterprise site key (blank for localhost debug)</label>
+              <input id="recaptcha-site-key" type="text" autocomplete="off" />
+            </div>
+            <label class="inline-check" for="chk-debug-appcheck">
+              <input id="chk-debug-appcheck" type="checkbox" />
+              <span>Localhost App Check debug-token mode</span>
+            </label>
+            <div class="step-actions inline">
+              <button id="btn-apply-firebase" data-testid="btn-apply-firebase" type="button" class="btn btn-outline btn-small">Apply config in memory</button>
+              <button id="btn-sync-remote-config" data-testid="btn-sync-remote-config" type="button" class="btn btn-outline btn-small">Sync guarded Remote Config</button>
+            </div>
+          </details>
+        </section>
+
+        <section aria-labelledby="hood-gate">
+          <h3 id="hood-gate">Approval gate</h3>
+          <dl class="kv">
+            <div><dt>Approval state</dt><dd><code id="approval-state" data-testid="approval-state">EMPTY</code></dd></div>
+            <div><dt>Payload SHA-256</dt><dd><code id="payload-sha" data-testid="payload-sha" class="wrap">NONE</code></dd></div>
+          </dl>
+          <p class="muted small">Approval is bound to this digest. Any edit invalidates it, and a zero-canary preflight blocks raw secrets before every send.</p>
+        </section>
+
+        <section aria-labelledby="hood-vault">
+          <h3 id="hood-vault">Encrypted workspace vault (optional)</h3>
+          <div class="field-row">
+            <div class="field grow"><label for="vault-workspace-id">Workspace ID</label><input id="vault-workspace-id" type="text" value="default-client-workspace" /></div>
+            <div class="field grow"><label for="vault-passphrase">Passphrase (8+ characters)</label><input id="vault-passphrase" type="password" autocomplete="off" /></div>
+          </div>
+          <div class="step-actions inline">
+            <button id="btn-save-vault" type="button" class="btn btn-outline btn-small">Save approved entities (AES-GCM)</button>
+            <button id="btn-unlock-vault" type="button" class="btn btn-outline btn-small">Unlock vault</button>
+          </div>
+        </section>
+
+        <section aria-labelledby="hood-report">
+          <h3 id="hood-report">16-field privacy report</h3>
+          <pre id="privacy-report-pre" data-testid="privacy-report-pre" class="report" tabindex="0" aria-label="Privacy report JSON"></pre>
+        </section>
+      </div>
+    </details>
   </main>
+
+  <footer class="site-footer">
+    <p>Your document is read in this browser tab. Cloud checks only ever see text you approved, with names and numbers replaced.</p>
+  </footer>
 
   <script type="module" src="./src/ui/app.ts"></script>
 </body>

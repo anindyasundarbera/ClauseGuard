@@ -22,6 +22,11 @@ export const SYSTEM_OVERHEAD_TOKENS = 350;
 export const CONTEXT_HINT_MAX_TOKENS = 250;
 export const SCHEMA_OVERHEAD_TOKENS = 300;
 export const OUTPUT_RESERVE_TOKENS = 1200;
+/** Documented Chrome built-in (Gemini Nano) on-device context budget used by Firebase AI Logic hybrid. */
+export const ON_DEVICE_CONTEXT_TOKEN_BUDGET = 9216;
+/** Worst-case single-call footprint; must stay below ON_DEVICE_CONTEXT_TOKEN_BUDGET (asserted in tests). */
+export const WORST_CASE_ON_DEVICE_CALL_TOKENS =
+  MAX_CHUNK_TOKENS + SYSTEM_OVERHEAD_TOKENS + CONTEXT_HINT_MAX_TOKENS + SCHEMA_OVERHEAD_TOKENS + OUTPUT_RESERVE_TOKENS;
 
 interface BrowserLanguageModelApi {
   availability(): Promise<string>;

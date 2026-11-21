@@ -152,6 +152,7 @@ export interface CloudDispatchOptions {
   firebaseConfig?: Partial<FirebaseRuntimeConfig> | null;
   modelId?: string;
   playbookId?: string;
+  maxOutputTokens?: number;
   allowLocalSimulatedCloud?: boolean;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -318,7 +319,7 @@ export async function analyzeApprovedPayload(
           );
         }
         try {
-          const cloudModel = handle.createCloudModel(activeModel);
+          const cloudModel = handle.createCloudModel(activeModel, undefined, opts.maxOutputTokens);
           const result = await cloudModel.generateContent(prompt, {
             signal: opts.signal,
             timeout: opts.timeoutMs ?? 30_000,

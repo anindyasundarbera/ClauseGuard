@@ -79,10 +79,12 @@ export type ApprovalState =
 
 export type AppCheckStatus =
   | "NOT_INITIALIZED"
+  | "NOT_CONFIGURED"
   | "LOCAL_ONLY_NO_CLOUD"
   | "DEBUG_PROVIDER_READY"
   | "RECAPTCHA_ENTERPRISE_READY"
   | "CUSTOM_PROVIDER_READY"
+  | "ATTESTATION_VERIFIED"
   | "ATTESTATION_FAILED";
 
 export interface FirebaseRuntimeConfig {

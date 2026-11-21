@@ -121,8 +121,14 @@ export function readFirebaseEnvConfig(): Partial<FirebaseRuntimeConfig> | null {
   }
 
   const rawDebug = env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN?.trim();
-  let debugToken: boolean | string | undefined =
-    rawDebug === "true" ? true : rawDebug && rawDebug.length > 0 ? rawDebug : undefined;
+  // Debug tokens are only ever honoured on localhost; a hosted build falls through to reCAPTCHA Enterprise.
+  let debugToken: boolean | string | undefined = !isLocalhostContext()
+    ? undefined
+    : rawDebug === "true"
+      ? true
+      : rawDebug && rawDebug.length > 0
+        ? rawDebug
+        : undefined;
 
   if (
     debugToken === undefined &&
@@ -146,6 +152,22 @@ export function readFirebaseEnvConfig(): Partial<FirebaseRuntimeConfig> | null {
     useLimitedUseAppCheckTokens: env.VITE_FIREBASE_USE_LIMITED_USE_APPCHECK === "true",
     cloudModelId: env.VITE_FIREBASE_CLOUD_MODEL?.trim() || DEFAULT_CLOUD_MODEL_ID,
   };
+}
+
+/**
+ * Honest, side-effect-free App Check status derived from configuration alone.
+ * "*_READY" means configured and will be activated lazily before the first cloud call (never
+ * at boot); "NOT_CONFIGURED" means a cloud call would be refused (ERR_APP_CHECK_NOT_CONFIGURED).
+ * Never returns NOT_INITIALIZED for a configured provider.
+ */
+export function resolveAppCheckStatus(config?: Partial<FirebaseRuntimeConfig> | null): AppCheckStatus {
+  if (!isLiveFirebaseConfig(config)) return "LOCAL_ONLY_NO_CLOUD";
+  if (config.customAppCheckTokenProvider) return "CUSTOM_PROVIDER_READY";
+  if (config.debugAppCheckToken !== undefined && config.debugAppCheckToken !== false && isLocalhostContext()) {
+    return "DEBUG_PROVIDER_READY";
+  }
+  if (config.recaptchaEnterpriseSiteKey) return "RECAPTCHA_ENTERPRISE_READY";
+  return "NOT_CONFIGURED";
 }
 
 function isLocalhostContext(): boolean {
@@ -266,7 +288,11 @@ export interface CloudFirebaseRuntimeHandle {
   ai: AI;
   appCheckStatus: AppCheckStatus;
   initSequence: string[];
-  createCloudModel: (modelId?: string, requestOptions?: RequestOptions) => GenerativeModel;
+  createCloudModel: (
+    modelId?: string,
+    requestOptions?: RequestOptions,
+    maxOutputTokens?: number
+  ) => GenerativeModel;
   verifyAppCheckAttestation: () => Promise<{ ok: boolean; tokenPresent: boolean; detail: string }>;
 }
 
@@ -344,6 +370,7 @@ export async function ensureCloudFirebaseRuntime(
         "App Check debug tokens are strictly restricted to localhost / 127.0.0.1 development contexts."
       );
     }
+    // Must be set BEFORE initializeAppCheck(); the SDK reads it once at activation.
     (globalThis as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
       config.debugAppCheckToken;
     provider = config.recaptchaEnterpriseSiteKey
@@ -380,7 +407,11 @@ export async function ensureCloudFirebaseRuntime(
     ai,
     appCheckStatus,
     initSequence,
-    createCloudModel(modelId = config.cloudModelId ?? DEFAULT_CLOUD_MODEL_ID, requestOptions?: RequestOptions) {
+    createCloudModel(
+      modelId = config.cloudModelId ?? DEFAULT_CLOUD_MODEL_ID,
+      requestOptions?: RequestOptions,
+      maxOutputTokens = 2048
+    ) {
       const validatedModel = validateSupportedCloudModel(modelId);
       if (!initSequence.includes("getGenerativeModel(ONLY_IN_CLOUD)")) {
         initSequence.push("getGenerativeModel(ONLY_IN_CLOUD)");
@@ -395,7 +426,7 @@ export async function ensureCloudFirebaseRuntime(
             generationConfig: {
               responseMimeType: "application/json",
               responseSchema: CLOUD_FINDINGS_FIREBASE_SCHEMA,
-              maxOutputTokens: 2048,
+              maxOutputTokens: Math.min(4096, Math.max(256, Math.round(maxOutputTokens))),
             },
           },
         },
@@ -409,6 +440,7 @@ export async function ensureCloudFirebaseRuntime(
           error?: unknown;
         };
         if (res?.error) {
+          handle.appCheckStatus = "ATTESTATION_FAILED";
           return {
             ok: false,
             tokenPresent: false,
@@ -417,18 +449,22 @@ export async function ensureCloudFirebaseRuntime(
         }
         const tokenPresent = Boolean(res?.token && res.token.length > 0);
         if (!tokenPresent) {
+          handle.appCheckStatus = "ATTESTATION_FAILED";
           return {
             ok: false,
             tokenPresent: false,
             detail: "App Check returned an empty attestation token.",
           };
         }
+        const via = handle.appCheckStatus;
+        handle.appCheckStatus = "ATTESTATION_VERIFIED";
         return {
           ok: true,
           tokenPresent: true,
-          detail: `App Check token ready via ${appCheckStatus}.`,
+          detail: `App Check token ready via ${via}.`,
         };
       } catch (err) {
+        handle.appCheckStatus = "ATTESTATION_FAILED";
         return {
           ok: false,
           tokenPresent: false,

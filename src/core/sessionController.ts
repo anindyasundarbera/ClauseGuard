@@ -6,6 +6,7 @@ import {
   ensureCloudFirebaseRuntime,
   isLiveFirebaseConfig,
   readFirebaseEnvConfig,
+  resolveAppCheckStatus,
   resetCloudFirebaseRuntime,
   validateSupportedCloudModel,
 } from "./firebase/firebaseClient.ts";
@@ -156,13 +157,7 @@ export class ClauseGuardSessionController {
         this.selectedCloudModel = DEFAULT_CLOUD_MODEL_ID;
       }
     }
-    if (isLiveFirebaseConfig(this.firebaseConfig)) {
-      this.appCheckStatus = this.firebaseConfig.recaptchaEnterpriseSiteKey
-        ? "RECAPTCHA_ENTERPRISE_READY"
-        : this.firebaseConfig.debugAppCheckToken
-          ? "DEBUG_PROVIDER_READY"
-          : "NOT_INITIALIZED";
-    }
+    this.appCheckStatus = resolveAppCheckStatus(this.firebaseConfig);
   }
 
   public setFirebaseConfig(config: Partial<FirebaseRuntimeConfig> | null): void {
@@ -170,17 +165,7 @@ export class ClauseGuardSessionController {
     if (config?.cloudModelId) {
       this.selectedCloudModel = validateSupportedCloudModel(config.cloudModelId);
     }
-    if (isLiveFirebaseConfig(config)) {
-      this.appCheckStatus = config.customAppCheckTokenProvider
-        ? "CUSTOM_PROVIDER_READY"
-        : config.recaptchaEnterpriseSiteKey
-          ? "RECAPTCHA_ENTERPRISE_READY"
-          : config.debugAppCheckToken
-            ? "DEBUG_PROVIDER_READY"
-            : "NOT_INITIALIZED";
-    } else {
-      this.appCheckStatus = "LOCAL_ONLY_NO_CLOUD";
-    }
+    this.appCheckStatus = resolveAppCheckStatus(config);
   }
 
   public getObservedFirebaseTelemetry(): ObservedFirebaseTelemetry {
@@ -478,6 +463,7 @@ export class ClauseGuardSessionController {
         firebaseConfig: effectiveConfig,
         modelId: opts.modelId ?? this.selectedCloudModel,
         playbookId: this.remoteConfigSnapshot.playbookId,
+        maxOutputTokens: this.remoteConfigSnapshot.maxCloudOutputTokens,
         allowLocalSimulatedCloud: opts.allowSimulatedCloud ?? true,
         signal: abortCtrl.signal,
         onFirebaseTelemetry: (info) => {
@@ -590,7 +576,7 @@ export class ClauseGuardSessionController {
     this.cloudInferenceSource = null;
     this.lastCloudSdkSource = null;
     this.firebaseConfig = readFirebaseEnvConfig();
-    this.appCheckStatus = isLiveFirebaseConfig(this.firebaseConfig) ? "NOT_INITIALIZED" : "LOCAL_ONLY_NO_CLOUD";
+    this.appCheckStatus = resolveAppCheckStatus(this.firebaseConfig);
     this.firebaseInitSequence = [];
     await resetCloudFirebaseRuntime();
     this.approvalMachine.transitionTo("EMPTY");
