@@ -106,7 +106,7 @@ python3 probes/nano_runtime_probe.py                        # Prompt API readine
 npm run bench                                               # CG-BENCH-v2 (deterministic detector)
 ```
 
-Without Gemma installed the app still works: it shows an honest readiness badge and uses deterministic local detection. Without Firebase credentials the cloud step is practice mode (labelled, zero packets).
+Without Gemma installed the app still works: it shows an honest readiness badge and uses deterministic local detection. On stock Chrome with the Prompt API flags off, `LanguageModel.availability()` can be exposed but never answer; the readiness check gives up after 4 s (`NANO_AVAILABILITY_TIMEOUT_MS`) and shows `UNAVAILABLE` with the safe-fallback status instead of staying on "Checking…". Without Firebase credentials the cloud step is practice mode (labelled, zero packets).
 
 ## 7. Gemma 4 on-device setup (honest hardware notes)
 

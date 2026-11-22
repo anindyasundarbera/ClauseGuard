@@ -28,8 +28,49 @@ export const ON_DEVICE_CONTEXT_TOKEN_BUDGET = 9216;
 export const WORST_CASE_ON_DEVICE_CALL_TOKENS =
   MAX_CHUNK_TOKENS + SYSTEM_OVERHEAD_TOKENS + CONTEXT_HINT_MAX_TOKENS + SCHEMA_OVERHEAD_TOKENS + OUTPUT_RESERVE_TOKENS;
 
+/**
+ * Upper bound for one `LanguageModel.availability()` call. With Chrome's Prompt API flags off the
+ * API can be exposed but its promise never settles; without this bound startup stays in CHECKING.
+ */
+export const NANO_AVAILABILITY_TIMEOUT_MS = 4000;
+
 interface BrowserLanguageModelApi {
   availability(): Promise<string>;
+}
+
+class NanoAvailabilityTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`LanguageModel.availability() did not settle within ${timeoutMs} ms`);
+    this.name = "NanoAvailabilityTimeoutError";
+  }
+}
+
+const AVAILABILITY_TIMEOUT_DETAIL =
+  `Chrome LanguageModel API did not answer within ${NANO_AVAILABILITY_TIMEOUT_MS / 1000} s ` +
+  "(Prompt API flags are probably off). Using deterministic local detection on this device; " +
+  "the cloud check still requires your explicit approval.";
+
+/** Once availability() has hung, later probes in this page session skip the wait (cleared by an explicit set-up retry). */
+let availabilityTimedOut = false;
+
+async function availabilityWithTimeout(lm: BrowserLanguageModelApi): Promise<string> {
+  if (availabilityTimedOut) throw new NanoAvailabilityTimeoutError(NANO_AVAILABILITY_TIMEOUT_MS);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const pending = lm.availability();
+  pending.catch(() => undefined);
+  try {
+    return await Promise.race([
+      pending,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          availabilityTimedOut = true;
+          reject(new NanoAvailabilityTimeoutError(NANO_AVAILABILITY_TIMEOUT_MS));
+        }, NANO_AVAILABILITY_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 const ENTITY_SYSTEM_PROMPT =
@@ -239,6 +280,7 @@ let detectedChromiumEchoStub = false;
 
 export function resetNanoAdapterStateForTests(): void {
   detectedChromiumEchoStub = false;
+  availabilityTimedOut = false;
 }
 
 export function isChromiumEchoStubResponse(text: string): boolean {
@@ -265,7 +307,7 @@ export async function probeNanoReadiness(): Promise<{
       return { state: "OFFLINE", detail: "Browser offline and LanguageModel API not exposed." };
     }
     try {
-      const avail = await lm.availability();
+      const avail = await availabilityWithTimeout(lm);
       if (avail === "available") {
         return { state: "READY_ON_DEVICE", detail: "Gemini Nano ready on-device while offline (Firebase ONLY_ON_DEVICE)." };
       }
@@ -274,6 +316,9 @@ export async function probeNanoReadiness(): Promise<{
         detail: `Offline and model state is '${avail}'. Failing closed to deterministic local detectors.`,
       };
     } catch (err) {
+      if (err instanceof NanoAvailabilityTimeoutError) {
+        return { state: "OFFLINE", detail: `Browser offline. ${AVAILABILITY_TIMEOUT_DETAIL}` };
+      }
       return { state: "ERROR", detail: `LanguageModel probe failed: ${String(err)}` };
     }
   }
@@ -285,7 +330,7 @@ export async function probeNanoReadiness(): Promise<{
     };
   }
   try {
-    const avail = await lm.availability();
+    const avail = await availabilityWithTimeout(lm);
     if (avail === "available") {
       return {
         state: "READY_ON_DEVICE",
@@ -310,6 +355,9 @@ export async function probeNanoReadiness(): Promise<{
       detail: `Chrome LanguageModel reported '${avail}'; failing closed to deterministic local mode.`,
     };
   } catch (err) {
+    if (err instanceof NanoAvailabilityTimeoutError) {
+      return { state: "UNAVAILABLE", detail: AVAILABILITY_TIMEOUT_DETAIL };
+    }
     return { state: "ERROR", detail: `Readiness check error: ${String(err)}` };
   }
 }
@@ -350,7 +398,17 @@ export async function initializeOnDeviceModelWithGesture(
       return false;
     };
 
-    const initialAvail = await lm.availability();
+    // An explicit set-up click is a fresh retry, so do not reuse an earlier timeout verdict.
+    availabilityTimedOut = false;
+    let initialAvail: string;
+    try {
+      initialAvail = await availabilityWithTimeout(lm);
+    } catch (err) {
+      if (err instanceof NanoAvailabilityTimeoutError) {
+        return { status: "UNAVAILABLE", detail: AVAILABILITY_TIMEOUT_DETAIL };
+      }
+      throw err;
+    }
     if (initialAvail === "available") {
       if (await verifyNotChromiumEchoStub()) {
         return {
