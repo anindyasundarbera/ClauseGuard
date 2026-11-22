@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""Phase 6 Independent Playwright + Chrome 156 CDP Network Egress & Adversarial Verification.
+"""CDP Network Egress & Adversarial Verification for the four-step guided UI (WO-057/WO-062).
 
-Instruments real Google Chrome 156.0.8078.47 against the production Vite build
-(`projects/clauseguard_hybrid/dist/`) across all 13 privacy egress scenarios plus
-adversarial XSS, prompt-injection, DOCX upload, and stale-approval tests.
+Instruments the locally installed Google Chrome against the production Vite build
+(`dist/`; run `npm run build` first) and drives the four-step flow
+(Import -> Review -> Approve -> Results) across the privacy egress scenarios plus
+adversarial XSS, prompt-injection, DOCX/PDF upload, and stale-approval tests.
+
+Evidence class: LIVE browser + SIMULATED cloud. Chrome is real and the egress capture is
+real CDP data, but the "cloud" is a local 127.0.0.1 mock of the Gemini wire endpoint, and this
+run uses a FRESH profile (no on-device weights), so local detection is deterministic-fallback.
+Real on-device model results live in `tests/e2e_live_on_device_verify.py` ->
+`evidence/wo062-live-on-device-proof.json`.
 
 Outputs:
-- `evidence/phase6-cdp-egress-and-security-proof.json` (plus monorepo mirror if present)
+- `evidence/phase6-cdp-egress-and-security-proof.json`
 - Fresh-browser demo screenshots in `demo/`
 """
 
@@ -33,7 +40,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = PROJECT_ROOT / "dist"
 DEMO_DIR = PROJECT_ROOT / "demo"
 OUT_JSON = PROJECT_ROOT / "evidence" / "phase6-cdp-egress-and-security-proof.json"
-EIS_MIRROR_JSON = PROJECT_ROOT.parents[1] / "research" / "evidence" / "clauseguard-mvp" / "phase6-cdp-egress-and-security-proof.json"
 
 RAW_CANARIES = [
     "Meridian Precision Robotics GmbH",
@@ -224,6 +230,33 @@ def start_static_and_cloud_servers(cloud_log: list[dict[str, Any]], fail_next: l
     return s_app, s_cloud
 
 
+def chrome_version() -> str:
+    import subprocess
+    try:
+        return subprocess.run(["/usr/bin/google-chrome", "--version"], capture_output=True, text=True, timeout=10).stdout.strip()
+    except Exception as exc:  # noqa: BLE001
+        return f"unknown ({exc})"
+
+
+def go_step(page: Any, n: int) -> None:
+    """Navigate via the stepper (enabled only for steps the session has unlocked)."""
+    page.click(f'[data-testid="step-{n}"]')
+    page.wait_for_selector(f'#panel-{n}:not([hidden])')
+
+
+def accept_all_if_pending(page: Any) -> None:
+    btn = page.locator('[data-testid="btn-accept-all"]')
+    if btn.is_visible():
+        btn.click()
+        time.sleep(0.25)
+
+
+def import_sample(page: Any, sample_id: str) -> None:
+    page.click(f'[data-testid="{sample_id}"]')
+    page.wait_for_selector('#panel-2:not([hidden])')
+    time.sleep(0.3)
+
+
 def check_canary_leaks(payloads: list[str]) -> list[str]:
     leaks: list[str] = []
     for txt in payloads:
@@ -277,12 +310,13 @@ def run_verification() -> dict[str, Any]:
             readiness_badge = page.text_content('[data-testid="nano-readiness-badge"]')
             scenarios["01_cold_start_readiness"] = {"status": "PASS", "badge": readiness_badge}
 
-            page.click('[data-testid="sample-msa-trap"]')
-            time.sleep(0.4)
+            import_sample(page, "sample-msa-trap")
             # Confirm approve button is blocked while PENDING_REVIEW items remain, then accept all pending entities
             approve_disabled_before_review = page.is_disabled('[data-testid="btn-approve-payload"]')
-            page.click('[data-testid="btn-accept-all"]')
-            time.sleep(0.25)
+            on_step_2_after_import = page.is_visible("#panel-2")
+            accept_all_if_pending(page)
+            page.click('[data-testid="btn-review-continue"]')
+            page.wait_for_selector('#panel-3:not([hidden])')
             preview_before = page.text_content('[data-testid="sanitized-preview"]') or ""
             sha_before = page.text_content('[data-testid="payload-sha"]') or ""
             approval_state_before = page.text_content('[data-testid="approval-state"]') or ""
@@ -292,11 +326,13 @@ def run_verification() -> dict[str, Any]:
                 "status": (
                     "PASS"
                     if approve_disabled_before_review
+                    and on_step_2_after_import
                     and len(cloud_log) == 0
                     and len(check_canary_leaks([preview_before])) == 0
                     else "FAIL"
                 ),
                 "approve_disabled_while_pending": approve_disabled_before_review,
+                "import_lands_on_review_step": on_step_2_after_import,
                 "approval_state": approval_state_before,
                 "cloud_calls_so_far": len(cloud_log),
                 "raw_canaries_in_preview": check_canary_leaks([preview_before]),
@@ -329,7 +365,8 @@ def run_verification() -> dict[str, Any]:
                 cloud_url,
             )
             page.click('[data-testid="btn-analyze-cloud"]')
-            time.sleep(0.5)
+            page.wait_for_selector('#panel-4:not([hidden])')
+            time.sleep(0.4)
             page.screenshot(path=str(DEMO_DIR / "02_approved_cloud_and_rehydration.png"))
             cloud_res = page.evaluate("window.__clauseguardController.findings")
 
@@ -372,6 +409,7 @@ def run_verification() -> dict[str, Any]:
             }
 
             # 9: Stale approval invalidation when entity toggled after approval
+            go_step(page, 2)
             first_reject_btn = page.locator('[data-testid^="reject-"]').first
             first_reject_btn.click()
             time.sleep(0.2)
@@ -394,6 +432,7 @@ def run_verification() -> dict[str, Any]:
             # Restore entity acceptance before testing retry so all canaries remain masked
             page.locator('[data-testid^="accept-"]').first.click()
             time.sleep(0.2)
+            go_step(page, 3)
             # 10: Cloud HTTP 500 failure + safe retry (never leaks raw content)
             page.check('[data-testid="chk-explicit-consent"]')
             page.click('[data-testid="btn-approve-payload"]')
@@ -425,6 +464,7 @@ def run_verification() -> dict[str, Any]:
             docx_path = Path(fresh_profile) / "test_contract.docx"
             docx_path.write_bytes(build_synthetic_docx_bytes())
             page.set_input_files('[data-testid="file-input"]', str(docx_path))
+            page.wait_for_selector('#panel-2:not([hidden])')
             time.sleep(0.5)
             docx_preview = page.text_content('[data-testid="sanitized-preview"]') or ""
             scenarios["06_local_docx_ingestion"] = {
@@ -435,12 +475,13 @@ def run_verification() -> dict[str, Any]:
             # 11b: Real PDF file upload via <input type="file"> exercising pdfjs-dist worker in Chrome
             pdf_path = Path(fresh_profile) / "test_contract.pdf"
             pdf_path.write_bytes(build_synthetic_pdf_bytes())
+            go_step(page, 1)
             page.set_input_files('[data-testid="file-input"]', str(pdf_path))
+            page.wait_for_selector('#panel-2:not([hidden])')
             time.sleep(0.8)
-            page.click('[data-testid="btn-accept-all"]')
-            time.sleep(0.25)
+            accept_all_if_pending(page)
             pdf_preview = page.text_content('[data-testid="sanitized-preview"]') or ""
-            pdf_warns = page.text_content('[data-testid="warnings-box"]') or ""
+            pdf_warns = " ".join(page.evaluate("window.__clauseguardController.warnings"))
             scenarios["06b_local_pdf_ingestion"] = {
                 "status": (
                     "PASS"
@@ -454,10 +495,10 @@ def run_verification() -> dict[str, Any]:
             }
 
             # 12: Adversarial Sample 3 (prompt injection + XSS <script>window.__xss=1</script> + zero-width char)
-            page.click('[data-testid="sample-adversarial-injection"]')
-            time.sleep(0.4)
+            go_step(page, 1)
+            import_sample(page, "sample-adversarial-injection")
             xss_val = page.evaluate("window.__xss")
-            warns_text = page.text_content('[data-testid="warnings-box"]') or ""
+            warns_text = " ".join(page.evaluate("window.__clauseguardController.warnings"))
             page.screenshot(path=str(DEMO_DIR / "03_adversarial_injection_safe_mode.png"))
             scenarios["07_adversarial_injection_and_xss"] = {
                 "status": "PASS" if xss_val is None and "SUSPICIOUS_ZERO_DETECTION" in warns_text else "FAIL",
@@ -468,9 +509,13 @@ def run_verification() -> dict[str, Any]:
             # 13: Offline mode local triage (0 network calls)
             pre_offline_count = len(cdp_requests)
             ctx.set_offline(True)
+            go_step(page, 3)
             page.click('[data-testid="btn-local-triage"]')
+            page.wait_for_selector('#panel-4:not([hidden])')
             time.sleep(0.3)
-            findings_txt = page.text_content('[data-testid="findings-list"]') or ""
+            findings_txt = (page.text_content('[data-testid="findings-list"]') or "") + " " + " ".join(
+                str(f.get("analysisSource")) for f in page.evaluate("window.__clauseguardController.findings")
+            )
             post_offline_count = len(cdp_requests)
             ctx.set_offline(False)
             scenarios["08_offline_local_triage"] = {
@@ -512,15 +557,37 @@ def run_verification() -> dict[str, Any]:
             cdp_d = p_dis.context.new_cdp_session(p_dis)
             cdp_d.send("Network.enable")
             cdp_d.on("Network.requestWillBeSent", lambda ev: dis_reqs.append(ev.get("request", {}).get("url", "")))
-            p_dis.goto(app_url, wait_until="networkidle")
+            p_dis.goto(app_url, wait_until="domcontentloaded")
+            time.sleep(1)
+            # Bounded probe: in headless Chrome 158 with the Prompt API feature flags disabled,
+            # LanguageModel.availability() was observed to never resolve (see observation below).
+            dis_availability = p_dis.evaluate(
+                """async () => {
+                    if (!("LanguageModel" in self)) return "no-api";
+                    return await Promise.race([
+                        self.LanguageModel.availability(),
+                        new Promise((r) => setTimeout(() => r("HANG_GT_5S"), 5000)),
+                    ]);
+                }"""
+            )
             p_dis.click('[data-testid="sample-msa-trap"]')
-            time.sleep(0.3)
+            try:
+                p_dis.wait_for_selector('#panel-2:not([hidden])', timeout=8000)
+                dis_import_completed = True
+            except Exception:  # noqa: BLE001
+                dis_import_completed = False
             dis_badge = p_dis.text_content('[data-testid="nano-readiness-badge"]')
             b_dis.close()
             ext_dis = [u for u in dis_reqs if not u.startswith(app_url)]
             scenarios["10_model_disabled_fail_closed"] = {
                 "status": "PASS" if len(ext_dis) == 0 else "FAIL",
                 "readiness_badge": dis_badge,
+                "language_model_availability_bounded_5s": dis_availability,
+                "import_completed_within_8s": dis_import_completed,
+                "observation": (
+                    "Fail-closed holds (0 external requests, nothing sent). If availability is HANG_GT_5S the app stays in "
+                    "CHECKING/busy because probeNanoReadiness() has no timeout: a robustness follow-up, not a privacy leak."
+                ),
                 "external_requests": ext_dis,
             }
     finally:
@@ -536,13 +603,16 @@ def run_verification() -> dict[str, Any]:
     url_leaks = check_canary_leaks([r["url"] for r in cdp_requests])
 
     report = {
-        "verification_id": "CG-MVP-PHASE6-CDP-EGRESS-AND-SECURITY-PROOF",
+        "verification_id": "CG-WO062-CDP-EGRESS-FOUR-STEP-UI",
+        "evidence_class": "LIVE_BROWSER_SIMULATED_CLOUD_FRESH_PROFILE_NO_ONDEVICE_WEIGHTS",
+        "ui_flow": "four-step (Import, Review, Approve, Results)",
         "executed_at_utc": datetime.now(timezone.utc).isoformat(),
         "chrome_executable": "/usr/bin/google-chrome",
+        "chrome_version": chrome_version(),
         "total_cdp_requests_observed": len(cdp_requests),
         "external_unexpected_requests": external_cdp,
         "local_mock_cloud_posts_observed": len(cloud_log),
-        "cloud_endpoint_scope_note": f"All {len(cloud_log)} CDP POST assertions hit local 127.0.0.1 mock @firebase/ai wire receiver (GoogleAIBackend + X-Firebase-AppCheck); live Google Gemini Developer API HTTP 200 execution against clauseguard-hybrid-1c5e2 was separately verified via interactive Chrome session.",
+        "cloud_endpoint_scope_note": f"SIMULATED: all {len(cloud_log)} cloud POSTs hit a local 127.0.0.1 mock of the Gemini wire endpoint (@firebase/ai + X-Firebase-AppCheck). No real Google/Firebase request was made by this script. Live cloud execution is not covered here.",
         "raw_canaries_in_cloud_posts": check_canary_leaks([c["body"] for c in cloud_log]),
         "raw_canaries_in_urls": url_leaks,
         "raw_canaries_in_console": console_leaks,
@@ -557,8 +627,6 @@ def run_verification() -> dict[str, Any]:
     payload_text = json.dumps(report, indent=2)
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(payload_text, encoding="utf-8")
-    if EIS_MIRROR_JSON.parent.exists():
-        EIS_MIRROR_JSON.write_text(payload_text, encoding="utf-8")
     print(payload_text)
     if not report["all_scenarios_passed"]:
         raise SystemExit(1)

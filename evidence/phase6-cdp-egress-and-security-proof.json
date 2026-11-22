@@ -1,11 +1,14 @@
 {
-  "verification_id": "CG-MVP-PHASE6-CDP-EGRESS-AND-SECURITY-PROOF",
-  "executed_at_utc": "2026-11-20T04:47:22.925337+00:00",
+  "verification_id": "CG-WO062-CDP-EGRESS-FOUR-STEP-UI",
+  "evidence_class": "LIVE_BROWSER_SIMULATED_CLOUD_FRESH_PROFILE_NO_ONDEVICE_WEIGHTS",
+  "ui_flow": "four-step (Import, Review, Approve, Results)",
+  "executed_at_utc": "2026-11-21T17:26:09.373414+00:00",
   "chrome_executable": "/usr/bin/google-chrome",
+  "chrome_version": "Google Chrome 158.0.8127.36",
   "total_cdp_requests_observed": 10,
   "external_unexpected_requests": [],
   "local_mock_cloud_posts_observed": 3,
-  "cloud_endpoint_scope_note": "All 3 CDP POST assertions hit local 127.0.0.1 mock @firebase/ai wire receiver (GoogleAIBackend + X-Firebase-AppCheck); live Google Gemini Developer API HTTP 200 execution against clauseguard-hybrid-1c5e2 was separately verified via interactive Chrome session.",
+  "cloud_endpoint_scope_note": "SIMULATED: all 3 cloud POSTs hit a local 127.0.0.1 mock of the Gemini wire endpoint (@firebase/ai + X-Firebase-AppCheck). No real Google/Firebase request was made by this script. Live cloud execution is not covered here.",
   "raw_canaries_in_cloud_posts": [],
   "raw_canaries_in_urls": [],
   "raw_canaries_in_console": [],
@@ -17,6 +20,7 @@
     "02_before_approval_zero_cloud": {
       "status": "PASS",
       "approve_disabled_while_pending": true,
+      "import_lands_on_review_step": true,
       "approval_state": "PAYLOAD_PREVIEWED",
       "cloud_calls_so_far": 0,
       "raw_canaries_in_preview": []
@@ -41,7 +45,7 @@
     },
     "05_cloud_failure_and_retry": {
       "status": "PASS",
-      "first_error": "AI: Error fetching from http://127.0.0.1:37671/v1beta/projects/cdp-test-proj/models/gemini-3.5-flash-lite:generateContent: [500 Internal Server Error] Simulated transient HTTP 500 (AI/fetch-error)",
+      "first_error": "AI: Error fetching from http://127.0.0.1:39863/v1beta/projects/cdp-test-proj/models/gemini-3.5-flash-lite:generateContent: [500 Internal Server Error] Simulated transient HTTP 500 (AI/fetch-error)",
       "cloud_calls_total": 3,
       "raw_canaries_across_all_posts": []
     },
@@ -57,7 +61,7 @@
     "07_adversarial_injection_and_xss": {
       "status": "PASS",
       "xss_executed": false,
-      "warnings_excerpt": "Stripped 1 invisible Unicode Cf characters during NFKC normalization.Chunk 1: Prompt-injection pattern detected in chunk; handled deterministically with manual review alert.SUSPICIOUS_ZERO_DETECTION on Chunk 1: manual Airlock inspection required."
+      "warnings_excerpt": "Stripped 1 invisible Unicode Cf characters during NFKC normalization. Chunk 1: Prompt-injection pattern detected in chunk; handled deterministically with manual review alert. SUSPICIOUS_ZERO_DETECTION on Chunk 1: manual Airlock inspection required."
     },
     "08_offline_local_triage": {
       "status": "PASS",
@@ -70,7 +74,10 @@
     },
     "10_model_disabled_fail_closed": {
       "status": "PASS",
-      "readiness_badge": "DOWNLOADABLE_PENDING_WEIGHTS",
+      "readiness_badge": "CHECKING",
+      "language_model_availability_bounded_5s": "HANG_GT_5S",
+      "import_completed_within_8s": false,
+      "observation": "Fail-closed holds (0 external requests, nothing sent). If availability is HANG_GT_5S the app stays in CHECKING/busy because probeNanoReadiness() has no timeout: a robustness follow-up, not a privacy leak.",
       "external_requests": []
     }
   },

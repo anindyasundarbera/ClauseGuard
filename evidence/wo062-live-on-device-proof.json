@@ -1,0 +1,183 @@
+{
+  "verification_id": "CG-WO062-LIVE-ON-DEVICE-PROOF",
+  "evidence_class": "FALLBACK_PATH_ONLY_ON_REAL_CHROME (on-device model unavailable; on-device results NOT proven)",
+  "ui_flow": "four-step (Import, Review, Approve, Results)",
+  "executed_at_utc": "2026-11-21T19:42:50.504205+00:00",
+  "host": {
+    "os": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+    "chrome_version": "Google Chrome 158.0.8127.36",
+    "profile_dir_is_default_probe_profile": true
+  },
+  "chrome_flags": [
+    "--enable-experimental-web-platform-features",
+    "--enable-features=OptimizationGuideOnDeviceModel:BypassPerfRequirement/true,OptimizationGuideManifestBroker,OnDeviceModelSpeculativeDecoding,AIApiFoundationalModel:model_version/v4,AIPromptAPIParams,PromptAPIForGeminiNano,PromptAPIForGeminiNanoMultimodalInput,AISummarizationAPI,AIWriterAPI,AIRewriterAPI,OptimizationHints"
+  ],
+  "weights": {
+    "note": "Weights are manually installed in the Chrome profile (probes/install_chrome_on_device_model.py); never committed or re-downloaded by this script.",
+    "OptGuideOnDeviceModel_mib": 0.0,
+    "optimization_guide_model_store_mib": 47.0
+  },
+  "not_covered": [
+    "Live Firebase/Gemini cloud call (not made; see phase6 evidence for mock-cloud wire checks)",
+    "Gemini Nano quality/accuracy benchmarking (this proves the runtime path and egress, not entity recall)"
+  ],
+  "app_url_origin": "http://localhost:32951",
+  "runtime_readiness": {
+    "language_model_availability": "unavailable",
+    "app_readiness_badge": "DEGRADED_DETERMINISTIC_SAFE",
+    "device_ai_status_text": "Private AI on this device: not available \u2014 using safe fallback"
+  },
+  "model_ready": false,
+  "blocker": "On-device model NOT usable in this Chrome: LanguageModel.availability()='unavailable', app badge='DEGRADED_DETERMINISTIC_SAFE'. Gemma 4 weights.bin is present in the profile, but Chrome did not expose it. Everything under 'samples_online'/'offline_run' below is therefore the DETERMINISTIC FALLBACK path, NOT on-device model results.",
+  "blocker_diagnostics": {
+    "chrome_version_now": "Google Chrome 158.0.8127.36",
+    "previous_working_run": "evidence/phase2-nano-runtime-matrix.json (Chrome 156.0.8078.47, availability='available', gemma4_gpu_low_tier_model loaded)",
+    "on_device_internals_text_excerpt": "On-Device Internals Tools Event Logs Broker State Device performance class: Loading... Model directory Load Load Default Use ChromeOS Platform Model Highest Quality Fastest Inference Context options (current size: 0 words) Context Add New session Top K Temperature Input Add image Add audio Execute Cancel Event Logs Dump Time Source Location Log Message Broker Properties Manifest Criteria Assets Name Version State Progress Error Use Cases Name Requested Unavailable Reason Models Name Folder Size Weights Path Backend Type Uninstall Models",
+    "interpretation": "chrome://on-device-internals never leaves 'Device performance class: Loading...' and its mojo pipe errors, i.e. the model broker did not initialize after Chrome updated 156 -> 158 on this machine.",
+    "manual_attempts_2026_11_22": [
+      "Same feature flags as phase2 (BypassPerfRequirement etc.): unavailable",
+      "Plus OptimizationGuideModelExecution/OptimizationGuideOnDeviceModel: unavailable",
+      "Dropping Playwright's --disable-field-trial-config: unavailable",
+      "Pasting the OptGuideManifestModel/<pubkey>/2026.8.7.929 dir into internals 'Model directory -> Load': no effect (page not responding)"
+    ],
+    "suggested_user_actions": [
+      "Open chrome://on-device-internals in the profile and check Broker State / Model Status",
+      "Re-run probes/install_chrome_on_device_model.py (will not re-download if weights exist) and check whether Chrome 158 expects a newer gemma4_component version",
+      "Or pin/downgrade to the Chrome build that worked (156.0.8078.47) for the demo recording"
+    ]
+  },
+  "samples_online": {
+    "sample-tenant-lease": {
+      "label": "tenant lease",
+      "import_to_review_completed": true,
+      "ingest_plus_on_device_extraction_latency_s": 0.1,
+      "entities": {
+        "total": 8,
+        "by_source": {
+          "PREAMBLE_DEFINITION": 1,
+          "DETERMINISTIC_L1": 7
+        },
+        "nano_entities": [],
+        "local_inference_source": "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Firebase ONLY_ON_DEVICE weights unavailable)",
+        "last_local_sdk_source": "DEGRADED_DETERMINISTIC_SAFE",
+        "readiness_state": "DEGRADED_DETERMINISTIC_SAFE",
+        "privacy_mode": "DEGRADED_DETERMINISTIC_SAFE",
+        "warnings": [
+          "Chunk 1: Chrome LanguageModel reported 'unavailable'; failing closed to deterministic local mode."
+        ]
+      },
+      "on_device_model_contributed_entities": false,
+      "external_requests_during_local_steps": [],
+      "cloud_gate_before_approval": {
+        "default_privacy_mode": "DEGRADED_DETERMINISTIC_SAFE",
+        "run_cloud_call_rejected": true,
+        "error": "PrivacyBoundaryError: ERR_UNAPPROVED_EGRESS_BLOCKED: Blocked outbound cloud call: state is 'PAYLOAD_PREVIEWED'.",
+        "approval_state": "PAYLOAD_PREVIEWED",
+        "findings_created": 0,
+        "analyze_cloud_button_hidden": true,
+        "approve_button_disabled_until_consent": true,
+        "external_requests_during_gate_probe": []
+      },
+      "local_clause_triage": {
+        "completed": true,
+        "latency_s": 0.05,
+        "findings": [
+          {
+            "source": "DETERMINISTIC_LOCAL_TRIAGE",
+            "observed": null,
+            "severity": "LOW"
+          }
+        ]
+      },
+      "external_requests_total_all_local_steps": []
+    },
+    "sample-medical-bill": {
+      "label": "medical bill",
+      "import_to_review_completed": true,
+      "ingest_plus_on_device_extraction_latency_s": 0.07,
+      "entities": {
+        "total": 11,
+        "by_source": {
+          "DETERMINISTIC_L1": 11
+        },
+        "nano_entities": [],
+        "local_inference_source": "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Firebase ONLY_ON_DEVICE weights unavailable)",
+        "last_local_sdk_source": "DEGRADED_DETERMINISTIC_SAFE",
+        "readiness_state": "DEGRADED_DETERMINISTIC_SAFE",
+        "privacy_mode": "DEGRADED_DETERMINISTIC_SAFE",
+        "warnings": [
+          "Chunk 1: Chrome LanguageModel reported 'unavailable'; failing closed to deterministic local mode."
+        ]
+      },
+      "on_device_model_contributed_entities": false,
+      "external_requests_during_local_steps": [],
+      "cloud_gate_before_approval": {
+        "default_privacy_mode": "DEGRADED_DETERMINISTIC_SAFE",
+        "run_cloud_call_rejected": true,
+        "error": "PrivacyBoundaryError: ERR_UNAPPROVED_EGRESS_BLOCKED: Blocked outbound cloud call: state is 'PAYLOAD_PREVIEWED'.",
+        "approval_state": "PAYLOAD_PREVIEWED",
+        "findings_created": 0,
+        "analyze_cloud_button_hidden": true,
+        "approve_button_disabled_until_consent": true,
+        "external_requests_during_gate_probe": []
+      },
+      "local_clause_triage": {
+        "completed": true,
+        "latency_s": 0.04,
+        "findings": [
+          {
+            "source": "DETERMINISTIC_LOCAL_TRIAGE",
+            "observed": null,
+            "severity": "LOW"
+          }
+        ]
+      },
+      "external_requests_total_all_local_steps": []
+    }
+  },
+  "offline_run": {
+    "navigator_onLine_during_run": false,
+    "sample": "sample-tenant-lease",
+    "import_to_review_completed": true,
+    "latency_s": 0.06,
+    "entities": {
+      "total": 8,
+      "by_source": {
+        "PREAMBLE_DEFINITION": 1,
+        "DETERMINISTIC_L1": 7
+      },
+      "nano_entities": [],
+      "local_inference_source": "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Firebase ONLY_ON_DEVICE weights unavailable)",
+      "last_local_sdk_source": "DEGRADED_DETERMINISTIC_SAFE",
+      "readiness_state": "DEGRADED_DETERMINISTIC_SAFE",
+      "privacy_mode": "DEGRADED_DETERMINISTIC_SAFE",
+      "warnings": [
+        "Chunk 1: Offline and model state is 'unavailable'. Failing closed to deterministic local detectors."
+      ]
+    },
+    "on_device_model_contributed_entities": false,
+    "external_requests": []
+  },
+  "console_messages_sample": [
+    "No output language was specified in a LanguageModel API request. An output language should be specified to ensure optimal output quality and properly attest to output safety. Please specify a supported output language code: [de, en, es, fr, ja]",
+    "No output language was specified in a LanguageModel API request. An output language should be specified to ensure optimal output quality and properly attest to output safety. Please specify a supported output language code: [de, en, es, fr, ja]",
+    "No output language was specified in a LanguageModel API request. An output language should be specified to ensure optimal output quality and properly attest to output safety. Please specify a supported output language code: [de, en, es, fr, ja]",
+    "No output language was specified in a LanguageModel API request. An output language should be specified to ensure optimal output quality and properly attest to output safety. Please specify a supported output language code: [de, en, es, fr, ja]"
+  ],
+  "total_page_requests_observed": 16,
+  "external_requests_all_phases": [],
+  "checks": {
+    "on_device_runtime_ready": false,
+    "on_device_extraction_both_samples": false,
+    "zero_external_requests_all_phases": true,
+    "cloud_blocked_until_approval_both_samples": true,
+    "offline_run_completed_with_zero_requests": true,
+    "offline_run_used_on_device_model": false
+  },
+  "status": "BLOCKED_ON_DEVICE_MODEL_UNAVAILABLE",
+  "fallback_path_checks": {
+    "zero_external_requests_all_phases": true,
+    "cloud_blocked_until_approval_both_samples": true,
+    "offline_run_completed_with_zero_requests": true
+  }
+}
