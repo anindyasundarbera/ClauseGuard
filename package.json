@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "ClauseGuard Hybrid — Privacy-First Hybrid AI Contract Redaction & Cross-Clause Risk Analysis MVP",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "vite --port 4173 --strictPort",
     "build": "tsc --noEmit && vite build",

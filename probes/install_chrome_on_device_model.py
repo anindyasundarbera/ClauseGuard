@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Chrome 156 On-Device Model Component Downloader, Verifier & Installer.
 
+NOTE (Chrome 158, 2026-11-22): Chrome's manifest 1.20261108.2 pins gemma4_component 2026.11.3.1140, and the
+Omaha query below returns `noupdate` for this component. With Playwright's default `OptimizationHints` feature
+override dropped (see IGNORE_DEFAULT_ARGS in tests/e2e_live_on_device_verify.py) Chrome 158 downloaded the newer
+component itself (~6.5 min, no int32 failure), so this installer is only a fallback there.
+
 Diagnoses and works around Chrome 156's `components/update_client` 32-bit
 signed integer overflow (`INT32_MAX = 2,147,483,647`) when Omaha v4 returns
 component packages larger than 2.14 GiB (e.g. `gemma4_component` 2026.8.7.929
@@ -99,9 +104,25 @@ class _OffsetBinaryReader(io.RawIOBase):
             super().close()
 
 
+def detect_chrome_version() -> str:
+    """Installed Chrome version (Omaha serves component packages per `prodversion`)."""
+    import re
+    import subprocess
+
+    try:
+        out = subprocess.run(["/usr/bin/google-chrome", "--version"], capture_output=True, text=True, timeout=10).stdout
+        m = re.search(r"\d+\.\d+\.\d+\.\d+", out)
+        if m:
+            return m.group(0)
+    except Exception:  # noqa: BLE001
+        pass
+    return "156.0.8078.47"
+
+
 def query_omaha_component(
     appid: str = GEMMA4_APP_ID,
     target_version: str = GEMMA4_DEFAULT_VERSION,
+    prodversion: str | None = None,
 ) -> dict[str, Any]:
     """Query Google Omaha v4 for the latest component CRX3 URL, size, and SHA-256."""
     payload = {
@@ -120,7 +141,7 @@ def query_omaha_component(
                 }
             ],
             "os": {"arch": "x86_64", "platform": "Linux"},
-            "prodversion": "156.0.8078.47",
+            "prodversion": prodversion or detect_chrome_version(),
             "protocol": "4.0",
         }
     }
@@ -368,13 +389,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Download, verify, and install Chrome Gemma4 on-device component")
     parser.add_argument("--probe-only", action="store_true", help="Only query Omaha and inspect local dirs")
     parser.add_argument("--workers", type=int, default=4, help="Parallel HTTP range workers")
+    parser.add_argument(
+        "--target-version",
+        default=GEMMA4_DEFAULT_VERSION,
+        help="gemma4_component version Chrome's manifest pins (see OptimizationGuideModelsManifest/<ver>/manifest.binarypb; "
+        "Chrome 158 manifest 1.20261108.2 pins 2026.11.3.1140)",
+    )
+    parser.add_argument("--prodversion", default=None, help="Chrome version sent to Omaha (default: detected)")
+    parser.add_argument("--probe-profile-only", action="store_true", help="Install only into the ClauseGuard probe profile; do not touch ~/.config/google-chrome")
     parser.add_argument("--keep-crx", action="store_true", help="Keep cached .crx3 file after extraction")
     args = parser.parse_args()
 
     print("[omaha] Querying Google Chrome component update endpoint...")
     try:
-        meta = query_omaha_component()
+        meta = query_omaha_component(target_version=args.target_version, prodversion=args.prodversion)
     except Exception as exc:  # noqa: BLE001
+        if args.target_version != GEMMA4_DEFAULT_VERSION:
+            print(f"[omaha] Query failed for requested version {args.target_version}: {exc}. Refusing to fall back to a stale version.")
+            return 3
         print(f"[omaha] Query warning ({exc}), using verified fallback URL metadata")
         meta = {
             "appid": GEMMA4_APP_ID,
