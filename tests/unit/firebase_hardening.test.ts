@@ -10,7 +10,13 @@ import {
   WORST_CASE_ON_DEVICE_CALL_TOKENS,
 } from "../../src/core/orchestration/nanoAdapter.ts";
 
-const live = { ...DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG };
+// A fake but structurally live config: the committed default is an empty template.
+const live = {
+  ...DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG,
+  apiKey: "test-web-api-key",
+  projectId: "test-project",
+  appId: "1:000000000000:web:test",
+};
 
 describe("App Check status honesty", () => {
   it("never reports NOT_INITIALIZED for a configured provider", () => {

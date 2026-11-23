@@ -411,7 +411,12 @@ async function importDocument(
 
 async function initUi(): Promise<void> {
   const fbJsonBox = el<HTMLTextAreaElement>("firebase-config-json");
-  if (!fbJsonBox.value.trim()) fbJsonBox.value = JSON.stringify(DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG, null, 2);
+  if (!fbJsonBox.value.trim()) {
+    // Show the env-loaded config if there is one, otherwise the empty template to fill in.
+    const shown = { ...DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG, ...(controller.firebaseConfig ?? {}) };
+    delete (shown as { debugAppCheckToken?: unknown }).debugAppCheckToken;
+    fbJsonBox.value = JSON.stringify(shown, null, 2);
+  }
   el<HTMLInputElement>("chk-debug-appcheck").checked = Boolean(controller.firebaseConfig?.debugAppCheckToken);
 
   // Samples

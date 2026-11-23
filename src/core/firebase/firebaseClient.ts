@@ -39,17 +39,17 @@ export const SUPPORTED_FIREBASE_CLOUD_MODELS: readonly SupportedFirebaseCloudMod
 ] as const;
 
 /**
- * Public Firebase Web App client identifiers for ClauseGuard Hybrid (`clauseguard-hybrid-1c5e2`).
- * Per Firebase & #BuildHybridAI guidance, public Web App config identifies the Firebase project
- * (never include App Check debug token UUIDs or server credentials here).
+ * Empty Firebase Web App config template. The real values come only from the `VITE_FIREBASE_*`
+ * build-time variables (see `.env.example` and `docs/firebase-setup.md`), so no project key is
+ * committed. With no config the app runs local-only: on-device extraction and no cloud call.
  */
 export const DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG: FirebaseRuntimeConfig = {
-  apiKey: "REDACTED-FIREBASE-WEB-API-KEY",
-  authDomain: "clauseguard-hybrid-1c5e2.firebaseapp.com",
-  projectId: "clauseguard-hybrid-1c5e2",
-  storageBucket: "clauseguard-hybrid-1c5e2.firebasestorage.app",
-  messagingSenderId: "80615674816",
-  appId: "1:80615674816:web:dd73086d2b177dd0e02e25",
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
   cloudModelId: DEFAULT_CLOUD_MODEL_ID,
 };
 
