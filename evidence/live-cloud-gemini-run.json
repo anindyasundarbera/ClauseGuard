@@ -1,0 +1,230 @@
+{
+  "verification_id": "CG-LIVE-CLOUD-GEMINI-RUN",
+  "evidence_class": "LIVE_CLOUD (real Firebase AI Logic ONLY_IN_CLOUD -> Gemini Developer API; nothing simulated)",
+  "ui_flow": "four-step (Import, Review, Approve, Results), driven through the real buttons",
+  "executed_at_utc": "2026-11-27T16:33:16.993089+00:00",
+  "host": {
+    "os": "Linux-6.18.44-fc-v880-x86_64-with-glibc2.39",
+    "browser": "chromium 158.0.8127.36"
+  },
+  "sample": "sample-msa-trap",
+  "requested_model": "gemini-3.5-flash-lite",
+  "secrets_policy": "No API key, App Check token or debug token is recorded: query strings and headers are dropped and UUIDs are scrubbed.",
+  "firebase_project_id": "clauseguard-hybrid-1c5e2",
+  "app_url_origin": "http://localhost:45159",
+  "boot": {
+    "live": true,
+    "project": "clauseguard-hybrid-1c5e2",
+    "app_check_badge": "DEBUG_PROVIDER_READY",
+    "debug_app_check_configured": true
+  },
+  "external_requests_at_boot": [],
+  "approval": {
+    "state_before_call": "HUMAN_APPROVED_FOR_CLOUD",
+    "approved_payload_sha256": "beb29384cd738afbdc4c3260fb24b8d9bf6fe14c8b6313a53c54c5a9e390b7c0",
+    "approved_payload_sha256_recomputed": "beb29384cd738afbdc4c3260fb24b8d9bf6fe14c8b6313a53c54c5a9e390b7c0",
+    "placeholders": 14,
+    "local_inference_source": "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Firebase ONLY_ON_DEVICE weights unavailable)",
+    "approved_payload": "MASTER SERVICES AGREEMENT dated 2026-03-01 between [ORG_CLIENT_1] (hereinafter '[ORG_CLIENT_1_V2]' or 'CLIENT'), having offices at [ADDRESS_PARTY_2], and [ORG_ADVISOR_3] ('ADVISOR'). Authorized contact: [PERSON_SIGNATORY_4] ([EMAIL_PARTY_5], [PHONE_PARTY_6]). Clause 14.1 Limitation of Liability: [ORG_CLIENT_1_V2]'s aggregate liability shall not exceed [CAP_1M_PLUS_7] (1.5x Annual Fees), excluding breaches of confidentiality under Clause 9.3 or unlimited indemnification claims. [CODENAME_PARTY_8] deliverables wire to IBAN [IBAN_BANK_9] at [BANK_BANK_10]. Test signatory SSN canary: [SSN_PARTY_11]. Forbidden telemetry token canary: [API_KEY_PARTY_12]."
+  },
+  "cloud_call": {
+    "reached_results_step": true,
+    "latency_s": 2.07,
+    "cloud_inference_source": "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD (gemini-3.5-flash-lite, inferenceSource=in_cloud)",
+    "last_cloud_sdk_source": "in_cloud",
+    "app_check_status": "ATTESTATION_VERIFIED",
+    "firebase_init_sequence": [
+      "initializeApp",
+      "initializeAppCheck",
+      "getAI",
+      "getGenerativeModel(ONLY_IN_CLOUD)"
+    ],
+    "model_used": "gemini-3.5-flash-lite",
+    "approval_state_after": "REHYDRATED",
+    "error_box": null
+  },
+  "generate_content_calls": [
+    {
+      "url": "https://firebasevertexai.googleapis.com/v1beta/projects/clauseguard-hybrid-1c5e2/models/gemini-3.5-flash-lite:generateContent",
+      "method": "POST",
+      "http_status": 200,
+      "request_body_sha256": "8ff0d0e49e287611bd86755f63943ba38568f3eb030bef75dec5f85a33f0b0db",
+      "request_body_bytes": 2122,
+      "request_contains_exact_approved_payload": true,
+      "request_contains_approved_sha": true,
+      "raw_values_found_in_request": [],
+      "request_body": {
+        "generationConfig": {
+          "responseMimeType": "application/json",
+          "responseSchema": {
+            "type": "object",
+            "properties": {
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "HIGH",
+                        "MEDIUM",
+                        "LOW"
+                      ],
+                      "nullable": false
+                    },
+                    "title": {
+                      "type": "string",
+                      "nullable": false
+                    },
+                    "clauseRefs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "nullable": false
+                      },
+                      "nullable": false
+                    },
+                    "anonymizedExcerpt": {
+                      "type": "string",
+                      "nullable": false
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "nullable": false
+                    }
+                  },
+                  "nullable": false,
+                  "required": [
+                    "severity",
+                    "title",
+                    "clauseRefs",
+                    "anonymizedExcerpt",
+                    "rationale"
+                  ]
+                },
+                "nullable": false
+              }
+            },
+            "nullable": false,
+            "required": [
+              "findings"
+            ]
+          },
+          "maxOutputTokens": 2048
+        },
+        "safetySettings": [],
+        "systemInstruction": {
+          "role": "system",
+          "parts": [
+            {
+              "text": "You are a contract risk analyst receiving strictly anonymized contract text where party names, addresses, and account numbers are replaced with bracketed tokens like [ORG_CLIENT_1] or [CAP_1M_PLUS_1]. Identify cross-clause contradictions (for example, aggregate liability caps undercut by uncapped carve-outs or conflicting party duties). Preserve every bracketed placeholder verbatim without guessing hidden identities. Return valid JSON matching the schema."
+            }
+          ]
+        },
+        "contents": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "text": "Playbook: COMMERCIAL_MSA_CONTRADICTION\nPayload-SHA256: beb29384cd738afbdc4c3260fb24b8d9bf6fe14c8b6313a53c54c5a9e390b7c0\nAnalyze ONLY the sanitized contract text below for cross-clause risk contradictions:\n\nMASTER SERVICES AGREEMENT dated 2026-03-01 between [ORG_CLIENT_1] (hereinafter '[ORG_CLIENT_1_V2]' or 'CLIENT'), having offices at [ADDRESS_PARTY_2], and [ORG_ADVISOR_3] ('ADVISOR'). Authorized contact: [PERSON_SIGNATORY_4] ([EMAIL_PARTY_5], [PHONE_PARTY_6]). Clause 14.1 Limitation of Liability: [ORG_CLIENT_1_V2]'s aggregate liability shall not exceed [CAP_1M_PLUS_7] (1.5x Annual Fees), excluding breaches of confidentiality under Clause 9.3 or unlimited indemnification claims. [CODENAME_PARTY_8] deliverables wire to IBAN [IBAN_BANK_9] at [BANK_BANK_10]. Test signatory SSN canary: [SSN_PARTY_11]. Forbidden telemetry token canary: [API_KEY_PARTY_12]."
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "modelVersion": "gemini-3.5-flash-lite",
+        "responseId": "3LAJa4uvJJDV_PUP3Z2gkQQ",
+        "usageMetadata": {
+          "promptTokenCount": 392,
+          "candidatesTokenCount": 183,
+          "totalTokenCount": 575,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 392
+            }
+          ],
+          "serviceTier": "standard"
+        },
+        "finishReason": "STOP",
+        "candidate_text": "{\n  \"findings\": [\n    {\n      \"severity\": \"HIGH\",\n      \"title\": \"Liability Cap Contradiction with Uncapped Carve-Outs\",\n      \"clauseRefs\": [\n        \"Clause 14.1\"\n      ],\n      \"anonymizedExcerpt\": \"[ORG_CLIENT_1_V2]'s aggregate liability shall not exceed [CAP_1M_PLUS_7] (1.5x Annual Fees), excluding breaches of confidentiality under Clause 9.3 or unlimited indemnification claims.\",\n      \"rationale\": \"Clause 14.1 establishes an aggregate liability cap of [CAP_1M_PLUS_7] but simultaneously undercuts it by excluding breaches of confidentiality under Clause 9.3 and unlimited indemnification claims, creating potential for uncapped liability exposures.\"\n    }\n  ]\n}",
+        "error": null
+      }
+    }
+  ],
+  "findings": [
+    {
+      "severity": "HIGH",
+      "title": "Liability Cap Contradiction with Uncapped Carve-Outs",
+      "clauseRefs": [
+        "Clause 14.1"
+      ],
+      "anonymizedExcerpt": "[ORG_CLIENT_1_V2]'s aggregate liability shall not exceed [CAP_1M_PLUS_7] (1.5x Annual Fees), excluding breaches of confidentiality under Clause 9.3 or unlimited indemnification claims.",
+      "rationale": "Clause 14.1 establishes an aggregate liability cap of USD $1,850,000.00 but simultaneously undercuts it by excluding breaches of confidentiality under Clause 9.3 and unlimited indemnification claims, creating potential for uncapped liability exposures.",
+      "analysisSource": "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD",
+      "observedInferenceSource": "in_cloud",
+      "modelUsed": "gemini-3.5-flash-lite"
+    }
+  ],
+  "privacy_report": {
+    "report_id": "PRIV-RPT-CG-1795797209242",
+    "generated_at_utc": "2026-11-27T16:33:34.009Z",
+    "session_id": "CG-1795797209242",
+    "privacy_mode": "HYBRID_ANONYMIZED",
+    "nano_readiness_state": "DEGRADED_DETERMINISTIC_SAFE",
+    "raw_document_sha256": "6fd8720282736e21d161ac68c658052994a91c4cd9e72a0a6b8f5499c8204f55",
+    "normalized_document_sha256": "6fd8720282736e21d161ac68c658052994a91c4cd9e72a0a6b8f5499c8204f55",
+    "approved_payload_sha256": "beb29384cd738afbdc4c3260fb24b8d9bf6fe14c8b6313a53c54c5a9e390b7c0",
+    "redaction_map_version": 3,
+    "entities_accepted_count": 14,
+    "entities_rejected_count": 0,
+    "local_inference_source": "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Firebase ONLY_ON_DEVICE weights unavailable)",
+    "cloud_inference_source": "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD (gemini-3.5-flash-lite, inferenceSource=in_cloud)",
+    "verified_properties": [
+      "Raw document parsing, NFKC normalization, deterministic Layer-1 scrubbing, and ARCH-RET-4.1 entity resolution ran inside browser RAM.",
+      "PREFER_ON_DEVICE is absent from inference code; local processing uses Firebase AI Logic ONLY_ON_DEVICE and fails closed without raw cloud fallback.",
+      "Firebase App Check status: ATTESTATION_VERIFIED.",
+      "Cloud submission gated on HUMAN_APPROVED_FOR_CLOUD matching SHA-256 beb29384cd738afb... via Firebase AI Logic ONLY_IN_CLOUD."
+    ],
+    "unverified_external_properties": [
+      "Browser extensions with <all_urls> host permissions operate outside origin JavaScript control.",
+      "OS/kernel-level network inspection requires external CDP/proxy instrumentation (see Phase 6 egress report)."
+    ],
+    "known_limitations_and_non_certification_disclaimer": "TECHNICAL PRIVACY REPORT (NOT LEGAL/REGULATORY CERTIFICATION): SHA-256 digests prove byte equivalence between the reviewed Airlock payload and the payload passed to Firebase AI Logic ONLY_IN_CLOUD at dispatch time; they do not independently certify zero OS-level egress, absence of third-party <all_urls> browser extensions, or GDPR/HIPAA/SOC2 legal compliance. ClauseGuard Hybrid is an assistive risk tool requiring human review, not legal advice."
+  },
+  "external_requests_before_approval_click": [],
+  "external_hosts_during_cloud_step": [
+    "content-firebaseappcheck.googleapis.com",
+    "firebasevertexai.googleapis.com"
+  ],
+  "external_requests_during_cloud_step": [
+    {
+      "phase": "approved_cloud_call",
+      "method": "POST",
+      "url": "https://content-firebaseappcheck.googleapis.com/v1/projects/clauseguard-hybrid-1c5e2/apps/1:80615674816:web:dd73086d2b177dd0e02e25:exchangeDebugToken"
+    },
+    {
+      "phase": "approved_cloud_call",
+      "method": "POST",
+      "url": "https://firebasevertexai.googleapis.com/v1beta/projects/clauseguard-hybrid-1c5e2/models/gemini-3.5-flash-lite:generateContent"
+    }
+  ],
+  "console_firebase_lines": [
+    "Firebase App Check debug token: <uuid-redacted>"
+  ],
+  "checks": {
+    "no_external_request_before_approval": true,
+    "approved_sha_matches_payload": true,
+    "real_generate_content_call_http_200": true,
+    "call_went_to_google_endpoint": true,
+    "request_body_is_exact_approved_payload": true,
+    "no_raw_values_in_any_request": true,
+    "sdk_reported_in_cloud": true,
+    "app_check_attested": true,
+    "findings_from_real_cloud": true,
+    "results_step_reached": true
+  },
+  "status": "PASS"
+}
