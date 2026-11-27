@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CDP Network Egress & Adversarial Verification for the four-step guided UI (WO-057/WO-062).
+"""CDP Network Egress & Adversarial Verification for the four-step guided UI.
 
 Instruments the locally installed Google Chrome against the production Vite build
 (`dist/`; run `npm run build` first) and drives the four-step flow
