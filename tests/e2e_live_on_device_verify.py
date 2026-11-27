@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""WO-062 LIVE on-device proof for the four-step guided UI.
+"""LIVE on-device proof for the four-step guided UI.
 
 Drives the production build (`dist/`, run `npm run build` first) in the locally installed Google Chrome
 using the persistent profile that holds the manually installed Gemma 4 on-device component

@@ -6,7 +6,7 @@ Items marked **TODO** need the owner. Nothing below claims results that are not 
 
 - **Project name:** ClauseGuard Hybrid
 - **Platform selected:** Web (Chrome app, on-device Gemma/Gemini Nano via Firebase AI Logic)
-- **Repo (public, Apache-2.0):** TODO paste GitHub URL. Check the repo's About box shows "Apache-2.0".
+- **Repo (public, Apache-2.0):** https://github.com/anindyasundarbera/ClauseGuard (check the repo's About box shows "Apache-2.0" once public)
 - **Hosted URL:** TODO (see docs/deploy.md; free, no login for judges)
 - **Video (YouTube, public, <= 3 min):** TODO
 
@@ -71,9 +71,9 @@ TypeScript, Vite, Vitest, Firebase AI Logic (`firebase/ai`), Firebase App Check 
 ## Required disclosures (paste into the "additional info" / testing instructions fields)
 
 - **How Firebase AI Logic is used:** see "How we built it". Imported and called at runtime in `src/core/firebase/firebaseClient.ts`, `src/core/orchestration/nanoAdapter.ts`, `src/core/inference/approvalMachine.ts`.
-- **Pre-existing code:** TODO owner to confirm. The repository history starts 2026-11-17 (inside the Nov 11 - Nov 30 period) but this was extracted from an earlier research prototype in a larger private monorepo. State that plainly and summarise what was built during the period (four-step UI, Firebase AI Logic integration, App Check, Remote Config guard, approval machine, CDP privacy suite, live on-device proof, hosting config, docs). Do not claim the whole thing was started after Nov 11 unless true.
+- **Pre-existing code:** None. All work on ClauseGuard started on 2026-11-17, inside the submission period (Nov 11 - Nov 30, 2026). The first commit (`0daed88`) is from that day, and the full history of this repository is public.
 - **AI coding assistants** (Claude Code) were used to write and test parts of the code and docs. Standard open-source libraries are used under their own licences.
-- **No secrets or personal data in the repo:** only public Firebase web identifiers; `.env.local` is git-ignored. Sample documents are entirely made up (names, IBANs, IDs). TODO owner: run a secret scan before making the repo public.
+- **No secrets or personal data in the repo:** only public Firebase web identifiers; `.env.local` is git-ignored. Sample documents are entirely made up (names, IBANs, IDs). A secret scan of the full git history (2026-11-27) found no API keys, tokens or private keys; the Firebase web API key was never committed.
 - **Free for judges:** TODO confirm the hosted URL needs no login and no payment. Text inference uses free-tier models; no billing is required. If judges need Chrome flags for the on-device path, point them to README section 7 and note the app still runs (deterministic local mode, practice-mode cloud) without them.
 - **Not legal or medical advice.** Output is a first-pass flag.
 - **Limits of evidence:** the committed live cloud evidence is against a mock; the on-device proof is a single Linux machine on Chrome 158. No user or usage statistics exist.

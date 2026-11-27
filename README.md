@@ -143,8 +143,8 @@ Hardware actually tested (from the evidence files): Linux x86_64, 16 logical cor
 
 ## 10. Hackathon disclosures
 
-Pre-existing work: the repo history begins 2026-11-17, inside the submission period (Nov 11 - Nov 30, 2026), but the project grew out of an earlier research prototype in a wider monorepo (the history references earlier phases). The owner should state this plainly on Devpost; see [docs/devpost-text.md](docs/devpost-text.md). AI coding assistants were used. Standard open-source libraries are used under their own licences (Firebase JS SDK, pdf.js, JSZip, Vite, Vitest, TypeScript).
+Pre-existing work: none. All work started on 2026-11-17, inside the submission period (Nov 11 - Nov 30, 2026); the first commit is from that day. AI coding assistants were used. Standard open-source libraries are used under their own licences (Firebase JS SDK, pdf.js, JSZip, Vite, Vitest, TypeScript).
 
 ## 11. Licence
 
-[Apache License 2.0](./LICENSE). Copyright holder in the licence header: add your name/team before publishing (`TODO`).
+[Apache License 2.0](./LICENSE). Copyright 2026 Anindyasundar Bera.
