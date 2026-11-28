@@ -72,9 +72,9 @@
       <p>ClauseGuard lists the names, contact details, account numbers and amounts it found. For each one, choose whether to hide it.</p>
       <p>ClauseGuard first works out what kind of document it is (a contract, a medical report, a bill or a bank statement) and says so at the top of the list, for example "Looks like a medical report". The headings follow from that, such as "Patients, doctors and relatives" or "Patient and record numbers". Values printed next to a form label, such as "Patient Name :", "UHID :", "DOB :" or "Mobile No :", are found and hidden automatically, and the row tells you which label it was next to. An item that appears several times is listed once.</p>
       <ul>
-        <li><strong>Hide all suggested items</strong> accepts the whole list in one click.</li>
+        <li>The buttons stay in a bar at the bottom of the screen while you scroll. <strong>Hide all</strong> (it shows how many) hides every item still waiting for a choice. The <strong>⋯</strong> button next to it has more one-click actions: hide all names, hide all numbers and IDs, hide everything on the list, undo your last change, and add something we missed.</li>
         <li>Automatic detection is good at numbers and emails but <strong>can miss people's names</strong>. Read the list, and if something is missing, type it under <strong>Hide something we missed</strong>, pick what it is and press <strong>Hide it everywhere</strong>. It is hidden in every place it appears.</li>
-        <li>Press <strong>Continue to approval</strong> when you are happy.</li>
+        <li>Press <strong>Continue</strong> when you are happy. If some items still need a choice, ClauseGuard asks you to hide them or go back and choose. Nothing undecided is ever sent.</li>
       </ul>
       <p>Hidden items are swapped for labelled placeholders in square brackets, so the AI still knows "this is the tenant" or "this is an amount" without seeing the real value.</p>
 
@@ -114,7 +114,7 @@
       <h2 id="status">The status bar at the top</h2>
       <ul>
         <li><strong>Private AI on this device</strong> shows whether Chrome's built-in model (Gemma) is ready. If it offers <strong>Set up private AI</strong>, pressing it downloads the model. This is a large download (about 2.3 GB) and only works on recent Chrome with the built-in AI features turned on. <strong>You do not need it.</strong> Without it, ClauseGuard finds sensitive details with built-in rules, and nothing is sent to the cloud instead.</li>
-        <li><strong>Deeper check</strong> says either "cloud connected and protected" (a real Gemini check is available) or "practice mode". Practice mode runs a clearly labelled simulation on your device and sends nothing.</li>
+        <li><strong>Deeper check</strong> says either "cloud connected and protected" (a real Gemini check is available) or "cloud not set up, so it runs on this device". In that case the deeper check is a clearly labelled simulation on your device and nothing is sent.</li>
       </ul>
       <p>The <strong>Under the hood</strong> section at the bottom of the app is for developers and judges. It shows which model answered (on-device or in the cloud), the approval fingerprint and a 16-field privacy report.</p>
 

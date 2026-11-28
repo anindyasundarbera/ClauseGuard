@@ -73,7 +73,7 @@ export function describeDeviceAi(state: NanoReadinessState, progressPct: number 
 export function describeCloud(t: ObservedFirebaseTelemetry): { tone: Tone; headline: string } {
   return t.hasLiveCloudConfig
     ? { tone: "ok", headline: "Deeper check: cloud connected and protected" }
-    : { tone: "neutral", headline: "Deeper check: practice mode — runs on this device, nothing is sent" };
+    : { tone: "neutral", headline: "Deeper check: cloud not set up, so it runs on this device and nothing is sent" };
 }
 
 export function describeApproval(state: ApprovalState): string {
@@ -310,10 +310,17 @@ export function reviewCounts(entities: DetectedEntity[]): {
 export function detectionNote(row: DetectedEntity[]): string {
   if (row.some((e) => e.source === "HUMAN_ADDED")) return "added by you";
   const labelled = row.find((e) => e.fieldLabel);
-  if (labelled) return `next to "${labelled.fieldLabel}"`;
-  const best = row.reduce((a, b) => (b.confidence > a.confidence ? b : a));
+  if (labelled) return `next to the label "${labelled.fieldLabel}"`;
   if (row.every((e) => e.source === "NANO_ON_DEVICE")) return "suggested by on-device AI";
-  return `${Math.round(best.confidence * 100)}% sure`;
+  const ent = row[0];
+  if (row.some((e) => e.source === "WORKSPACE_GRAPH")) return "seen in your earlier documents";
+  if (row.every((e) => e.source === "TRIGRAM_FUZZY")) return "close match to a name you saved before";
+  // A plain reason instead of a model percentage: "0% sure" reads as broken to non-experts.
+  return `looks like ${withArticle(categoryLabel(ent.category))}`;
+}
+
+function withArticle(noun: string): string {
+  return /^[aeiou]/i.test(noun) ? `an ${noun}` : `a ${noun}`;
 }
 
 /** Review heading for a category, using the document profile's wording when it has one. */
@@ -325,4 +332,37 @@ export function reviewHeading(
   const custom = profileHeadings[cat];
   const text = custom ? (count === 1 ? custom[0] : custom[1]) : categoryLabel(cat, count);
   return capitalize(text);
+}
+
+/** Categories the Review bar's "Hide all numbers and IDs" action covers. */
+export const NUMBER_CATEGORIES: ReadonlySet<EntityCategory> = new Set<EntityCategory>([
+  "PHONE", "IBAN", "CREDIT_CARD", "SSN", "EIN", "API_KEY", "ID_NUMBER", "DATE_OF_BIRTH",
+]);
+
+/**
+ * Ids of the items a bulk "hide" action would change: entities in the given categories (all
+ * categories when omitted) that are not already hidden.
+ */
+export function idsToHide(entities: DetectedEntity[], categories?: ReadonlySet<EntityCategory>): string[] {
+  return entities
+    .filter((e) => e.reviewStatus !== "ACCEPTED" && (!categories || categories.has(e.category)))
+    .map((e) => e.id);
+}
+
+/**
+ * The one short sentence spoken after a Review change: the outcome, then what is left.
+ * Announces results, never activity ("Updating…").
+ */
+export function reviewAnnouncement(outcome: string, pendingRows: number): string {
+  const left =
+    pendingRows === 0
+      ? "Every item has a choice now."
+      : `${pendingRows} left to decide.`;
+  return `${outcome}. ${left}`;
+}
+
+/** Why Continue on Review cannot move on yet, or null when it can. */
+export function reviewContinueBlocker(pendingRows: number): string | null {
+  if (pendingRows === 0) return null;
+  return `${pendingRows} detail${pendingRows === 1 ? " still needs" : "s still need"} a choice. Hide ${pendingRows === 1 ? "it" : "them"} and continue, or go back to choose.`;
 }
