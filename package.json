@@ -14,6 +14,8 @@
     "bench": "python3 benchmarks/cg_bench_v2_runner.py"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/nunito-sans": "^5.3.0",
     "firebase": "13.4.0",
     "jszip": "^3.10.1",
     "pdfjs-dist": "^6.5.438"

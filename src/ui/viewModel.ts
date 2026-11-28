@@ -526,3 +526,24 @@ export function roleTag(role: string | null | undefined): string | null {
   if (!role || role === "PARTY") return null;
   return roleLabel(role);
 }
+
+/** The privacy shield in the app bar: how much of the Review list has a decision. */
+export function shieldProgress(decided: number, total: number): {
+  pct: number;
+  label: string;
+  shortLabel: string;
+  ariaLabel: string;
+  complete: boolean;
+} {
+  const t = Math.max(0, Math.floor(total));
+  const d = Math.min(t, Math.max(0, Math.floor(decided)));
+  const complete = t > 0 && d === t;
+  const pct = t === 0 ? 0 : Math.round((d / t) * 100);
+  return {
+    pct,
+    complete,
+    label: complete ? "All decided" : `${d} of ${t} decided`,
+    shortLabel: complete ? "All decided" : `${d}/${t}`,
+    ariaLabel: complete ? "All details decided" : `${d} of ${t} details decided`,
+  };
+}

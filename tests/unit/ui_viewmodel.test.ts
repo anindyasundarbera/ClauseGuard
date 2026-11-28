@@ -8,6 +8,7 @@ import {
   friendlyError,
   ledgerCounts,
   plainWarnings,
+  shieldProgress,
   splitPlaceholders,
 } from "../../src/ui/viewModel.ts";
 import type { DetectedEntity, ObservedFirebaseTelemetry } from "../../src/core/types.ts";
@@ -83,4 +84,22 @@ describe("samples run through the real local pipeline", () => {
       await expect(c.approveCurrentPayload()).resolves.toBeTruthy();
     });
   }
+});
+
+describe("shield progress", () => {
+  it("reports partial progress", () => {
+    expect(shieldProgress(6, 10)).toEqual({ pct: 60, complete: false, label: "6 of 10 decided", shortLabel: "6/10", ariaLabel: "6 of 10 details decided" });
+  });
+  it("reports all decided", () => {
+    const s = shieldProgress(4, 4);
+    expect(s.pct).toBe(100);
+    expect(s.complete).toBe(true);
+    expect(s.label).toBe("All decided");
+  });
+  it("clamps and handles zero", () => {
+    expect(shieldProgress(0, 0).pct).toBe(0);
+    expect(shieldProgress(0, 0).complete).toBe(false);
+    expect(shieldProgress(9, 5).pct).toBe(100);
+    expect(shieldProgress(-2, 5).pct).toBe(0);
+  });
 });

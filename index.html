@@ -38,6 +38,15 @@
         </div>
       </nav>
 
+      <div id="shield-meter" data-testid="shield-meter" class="shield-meter" role="img" aria-label="" hidden>
+        <svg class="shield-svg" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+          <defs><clipPath id="shield-clip"><path d="M12 2L20 5V11C20 16 16.5 20 12 22C7.5 20 4 16 4 11V5Z"/></clipPath></defs>
+          <rect id="shield-fill" class="shield-fill" x="0" y="22" width="24" height="0" clip-path="url(#shield-clip)"/>
+          <path class="shield-outline" d="M12 2L20 5V11C20 16 16.5 20 12 22C7.5 20 4 16 4 11V5Z" fill="none" stroke-width="1.6" stroke-linejoin="round"/>
+        </svg>
+        <span id="shield-text" class="shield-text" aria-hidden="true"><span class="shield-long"></span><span class="shield-short"></span></span>
+      </div>
+
       <div class="appbar-status" role="group" aria-label="Privacy status">
         <div class="pop-wrap status-wide">
           <button id="chip-device" data-testid="chip-device" type="button" class="status-chip" aria-expanded="false" aria-controls="pop-device">
@@ -167,7 +176,7 @@
     <section id="panel-2" class="panel" data-panel="2" aria-labelledby="h-2" hidden>
       <div class="title-row">
         <h1 id="h-2" tabindex="-1">What should stay private?</h1>
-        <p class="lede" id="review-lede">Hide anything that should not leave this device. Hidden items become placeholders.</p>
+        <p class="lede" id="review-lede">You decide what leaves. Nothing is sent yet.</p>
       </div>
 
       <div class="cols cols-8-4">
@@ -327,6 +336,16 @@
       </div>
       <div class="cols cols-8-4">
         <div class="col-main">
+          <section id="finish-card" data-testid="finish-card" class="finish-card" aria-labelledby="finish-title" hidden>
+            <span class="finish-check" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="48" height="48" focusable="false"><circle cx="24" cy="24" r="24" class="finish-disc"/><path d="M14 25l7 7 13-15" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" class="finish-tick"/></svg>
+            </span>
+            <div class="finish-body">
+              <h2 id="finish-title" class="finish-title">All done.</h2>
+              <p id="finish-sub" class="finish-sub">Nothing personal was sent.</p>
+              <p id="tally-pill" data-testid="tally-pill" class="tally-pill" hidden></p>
+            </div>
+          </section>
           <div id="findings-empty" class="empty">
             <p class="empty-title">No results yet.</p>
             <p class="muted">Approve the cleaned text and run the deeper check, or check on this device only.</p>

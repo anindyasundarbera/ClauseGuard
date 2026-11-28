@@ -1,91 +1,92 @@
-/* ClauseGuard — calm "airlock" identity: paper-warm neutrals, deep teal, amber only for caution.
-   All text/background pairs target WCAG AA (4.5:1 body, 3:1 large/UI). */
+/* ClauseGuard — calm look: soft daylight paper and sage-teal accents by default, a warm "dusk"
+   charcoal in dark mode (never near-black), amber only for gentle caution, red only for real errors.
+   Few borders, generous spacing, one filled button per screen. Text pairs target WCAG AA (4.5:1 body, 3:1 UI). */
 :root {
   color-scheme: light;
-  --bg: #f3efe6;
-  --surface: #fffdf8;
-  --surface-2: #f7f3ea;
-  --ink: #17282a;
-  --muted: #46585a;
-  --line: #cfc8b8;
+  --bg: #F6F4EE;
+  --surface: #FDFCF8;
+  --surface-2: #EFEDE5;
+  --ink: #2A3433;
+  --muted: #5E6967;
+  --line: #DCD8CC;
   /* Borders that show where a control is: 3:1 or better on every surface (WCAG 1.4.11). */
-  --control-line: #857d6d;
-  --accent: #0b5d5a;
-  --accent-hover: #084745;
+  --control-line: #8C877A;
+  --accent: #3F7A70;
+  --accent-hover: #346a61;
   --on-accent: #ffffff;
-  --accent-soft: #dbeeea;
-  --accent-ink: #07423f;
-  --warn-bg: #fbeed3;
-  --warn-ink: #6b3a00;
-  --warn-line: #c58a2b;
-  --err-bg: #fbe4e1;
-  --err-ink: #8b1a14;
-  --err-line: #c9534b;
-  --ok-bg: #dff1e4;
-  --ok-ink: #1b5a31;
-  --mark-bg: #d4ebe7;
-  --mark-ink: #05403d;
-  --focus: #0b5d5a;
-  --shadow: 0 1px 2px rgba(23, 40, 42, 0.08), 0 8px 24px rgba(23, 40, 42, 0.06);
-  --radius: 14px;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --accent-soft: #E3EEEA;
+  --accent-ink: #2D5E56;
+  --warn-bg: #FBF1DE;
+  --warn-ink: #7A5216;
+  --warn-line: #c9a25e;
+  --err-bg: #f8e6e2;
+  --err-ink: #8b2a20;
+  --err-line: #c9776c;
+  --ok-bg: #e4efe6;
+  --ok-ink: #3d6b4f;
+  --mark-bg: #E3EEEA;
+  --mark-ink: #2D5E56;
+  --focus: #2D5E56;
+  --shadow: 0 1px 2px rgba(42, 52, 51, 0.06), 0 6px 20px rgba(42, 52, 51, 0.06);
+  --radius: 16px;
+  --serif: "Fraunces Variable", "Fraunces", Georgia, serif;
+  --sans: "Nunito Sans Variable", "Nunito Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0f1a1b;
-    --surface: #162426;
-    --surface-2: #1b2d2f;
-    --ink: #e8efec;
-    --muted: #a9bdbb;
-    --line: #2f4749;
-    --control-line: #6b8c8d;
-    --accent: #6fd6cc;
-    --accent-hover: #8fe3da;
-    --on-accent: #06201f;
-    --accent-soft: #1d3a39;
-    --accent-ink: #b5efe9;
-    --warn-bg: #3a2c12;
-    --warn-ink: #f5d9a0;
-    --warn-line: #a47423;
-    --err-bg: #3d1a18;
-    --err-ink: #ffc9c3;
-    --err-line: #b4534b;
-    --ok-bg: #173424;
-    --ok-ink: #a9e6bd;
-    --mark-bg: #204645;
-    --mark-ink: #c4f3ee;
-    --focus: #8fe3da;
+    --bg: #23211E;
+    --surface: #2C2A26;
+    --surface-2: #34322D;
+    --ink: #ECE7DD;
+    --muted: #B5AEA1;
+    --line: #44413A;
+    --control-line: #7C766A;
+    --accent: #7FAFA2;
+    --accent-hover: #8fbcaf;
+    --on-accent: #1c2522;
+    --accent-soft: #33413C;
+    --accent-ink: #BFDCD3;
+    --warn-bg: #3A3124;
+    --warn-ink: #E8CFA0;
+    --warn-line: #8a6f42;
+    --err-bg: #3d2522;
+    --err-ink: #f2c4bc;
+    --err-line: #a0625a;
+    --ok-bg: #2f3b31;
+    --ok-ink: #b9dcc3;
+    --mark-bg: #33413C;
+    --mark-ink: #BFDCD3;
+    --focus: #A8D3C7;
     --shadow: none;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0f1a1b;
-  --surface: #162426;
-  --surface-2: #1b2d2f;
-  --ink: #e8efec;
-  --muted: #a9bdbb;
-  --line: #2f4749;
-  --control-line: #6b8c8d;
-  --accent: #6fd6cc;
-  --accent-hover: #8fe3da;
-  --on-accent: #06201f;
-  --accent-soft: #1d3a39;
-  --accent-ink: #b5efe9;
-  --warn-bg: #3a2c12;
-  --warn-ink: #f5d9a0;
-  --warn-line: #a47423;
-  --err-bg: #3d1a18;
-  --err-ink: #ffc9c3;
-  --err-line: #b4534b;
-  --ok-bg: #173424;
-  --ok-ink: #a9e6bd;
-  --mark-bg: #204645;
-  --mark-ink: #c4f3ee;
-  --focus: #8fe3da;
+  --bg: #23211E;
+  --surface: #2C2A26;
+  --surface-2: #34322D;
+  --ink: #ECE7DD;
+  --muted: #B5AEA1;
+  --line: #44413A;
+  --control-line: #7C766A;
+  --accent: #7FAFA2;
+  --accent-hover: #8fbcaf;
+  --on-accent: #1c2522;
+  --accent-soft: #33413C;
+  --accent-ink: #BFDCD3;
+  --warn-bg: #3A3124;
+  --warn-ink: #E8CFA0;
+  --warn-line: #8a6f42;
+  --err-bg: #3d2522;
+  --err-ink: #f2c4bc;
+  --err-line: #a0625a;
+  --ok-bg: #2f3b31;
+  --ok-ink: #b9dcc3;
+  --mark-bg: #33413C;
+  --mark-ink: #BFDCD3;
+  --focus: #A8D3C7;
   --shadow: none;
 }
 :root[data-theme="light"] { color-scheme: light; }
@@ -554,4 +555,92 @@ html.guide-page body, body:has(.page.guide) { padding-bottom: 0; }
   .chip-download { display: none; }
   .ai-banner { padding: 0.75rem 0.9rem; }
   .ai-banner-actions .btn { flex: 1 1 auto; }
+}
+
+/* =====================================================================
+   CALM FINISH (appended section): one filled button per screen, privacy
+   shield meter, calm finish card, on-device tally, soft warnings.
+   Tokens only: no literal colours below this line.
+   ===================================================================== */
+
+/* One filled button per screen: only .btn-primary in the bottom bar is filled. Everything else is quiet. */
+.step[aria-current="step"] { background: var(--accent-soft); color: var(--accent-ink); }
+.step { transition: none; }
+.btn-outline { color: var(--ink); border-color: var(--control-line); }
+.btn-outline:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--surface-2); border-color: var(--control-line); }
+.theme-choice button[aria-checked="true"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; }
+.sample { border-color: var(--control-line); }
+.sample:hover:not(:disabled) { border-color: var(--control-line); background: var(--surface-2); }
+.sample-tag { color: var(--accent-ink); }
+.dropzone { border-color: var(--control-line); }
+.dropzone:hover, .dropzone.is-over { background: var(--surface-2); }
+
+/* Review: Hide / Show toggle, outlined; the chosen side is tinted and ticked. */
+.seg { border: 1.5px solid var(--control-line); border-radius: 12px; }
+.seg button { color: var(--muted); }
+.seg button + button { border-left: 1.5px solid var(--control-line); }
+.seg button:hover { background: var(--surface-2); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; }
+.seg-tick { margin-right: 0.15em; }
+.entity-card.is-pending { background: var(--surface); border-color: var(--warn-ink); }
+
+/* Privacy shield meter (app bar, step 2 only). */
+.shield-meter { display: inline-flex; align-items: center; gap: 0.45rem; flex: none; color: var(--accent-ink); font: 600 0.9rem/1.1 var(--sans); white-space: nowrap; }
+.shield-meter[hidden] { display: none; }
+.shield-svg { flex: none; }
+.shield-outline { stroke: var(--accent); }
+.shield-fill { fill: var(--accent); opacity: 0.38; }
+.shield-meter.is-complete .shield-fill { opacity: 0.55; }
+.shield-short { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .shield-fill { transition: y 0.3s ease, height 0.3s ease; }
+}
+@media (max-width: 640px) {
+  .shield-long { display: none; }
+  .shield-short { display: inline; }
+  .shield-meter { gap: 0.3rem; font-size: 0.85rem; }
+}
+
+/* Calm finish card at the top of Results. */
+.finish-card {
+  display: flex; align-items: center; gap: 1.1rem; padding: 1.25rem 1.4rem; margin-bottom: 1.25rem;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+}
+.finish-card[hidden] { display: none; }
+.finish-check { flex: none; display: inline-flex; }
+.finish-disc { fill: var(--accent-soft); }
+.finish-tick { stroke: var(--accent-ink); }
+.finish-title { font: 600 1.4rem/1.25 var(--serif); margin: 0; }
+.finish-sub { margin: 0.25rem 0 0; color: var(--muted); }
+.tally-pill {
+  display: inline-block; margin: 0.75rem 0 0; padding: 0.5rem 1rem; border-radius: 16px;
+  background: var(--accent-soft); color: var(--accent-ink); font-size: 0.92rem;
+}
+.tally-pill[hidden] { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .finish-check { animation: finish-in 0.3s ease-out both; }
+  @keyframes finish-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+}
+@media (max-width: 640px) {
+  .finish-card { align-items: flex-start; padding: 1rem; gap: 0.8rem; }
+  .finish-title { font-size: 1.2rem; }
+}
+
+/* Warnings: soft amber, a small "!" in a circle, a bold lead word. */
+.banner-warn { border-color: transparent; border-radius: 16px; padding: 0.9rem 1.1rem; }
+.warn-line { display: flex; gap: 0.7rem; align-items: flex-start; }
+.warn-icon, .side-warn::before {
+  flex: none; width: 1.3rem; height: 1.3rem; border-radius: 50%; border: 1.8px solid currentColor;
+  display: inline-flex; align-items: center; justify-content: center; font: 800 0.8rem/1 var(--sans);
+}
+.warn-icon::before, .side-warn::before { content: "!"; }
+.side-warn::before { margin-top: 0.1rem; }
+.side-warn { align-items: flex-start; border-color: transparent; border-radius: 14px; }
+.side-warn > span { flex: 1 1 12rem; }
+.ai-banner { border-color: transparent; border-radius: 16px; }
+.banner-info, .banner-busy { border-color: transparent; border-radius: 14px; }
+
+/* Very narrow phones: drop the word "Step" so the step name stays readable beside the shield. */
+@media (max-width: 420px) {
+  .step-compact-pre { display: none; }
 }

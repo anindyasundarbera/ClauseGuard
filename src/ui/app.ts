@@ -1,3 +1,4 @@
+import "./fonts.css";
 import { DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG } from "../core/firebase/firebaseClient.ts";
 import { ClauseGuardSessionController } from "../core/sessionController.ts";
 import type {
@@ -9,6 +10,7 @@ import type {
 } from "../core/types.ts";
 import { buildSamples } from "./samples.ts";
 import { initThemeControls } from "./theme.ts";
+import { clearTally, readTally, recordTally, tallyText } from "./tally.ts";
 import {
   detectionNote,
   groupForReview,
@@ -37,6 +39,7 @@ import {
   reviewContinueBlocker,
   roleLabel,
   severityLabel,
+  shieldProgress,
   plainWarnings,
   splitPlaceholders,
   STEP_TITLES,
@@ -264,7 +267,12 @@ function renderStepper(maxStep: StepNumber): void {
     else btn.removeAttribute("aria-current");
     btn.setAttribute("aria-label", `Step ${n}: ${STEP_TITLES[n]}${n < currentStep ? " (done)" : n === currentStep ? " (current)" : ""}`);
   }
-  el("step-compact").textContent = `Step ${currentStep} of 4 · ${STEP_TITLES[currentStep]}`;
+  // "Step " hides on very narrow phones (CSS) so the step name never gets cut off.
+  const compact = el("step-compact");
+  const pre = document.createElement("span");
+  pre.className = "step-compact-pre";
+  pre.textContent = "Step ";
+  compact.replaceChildren(pre, `${currentStep} of 4 · ${STEP_TITLES[currentStep]}`);
   for (const seg of document.querySelectorAll<HTMLElement>(".step-progress [data-seg]")) {
     seg.classList.toggle("is-on", Number(seg.dataset.seg) <= currentStep);
   }
@@ -330,7 +338,19 @@ function renderBanners(): void {
   warn.hidden = shown.length === 0;
   for (const w of shown) {
     const d = document.createElement("div");
-    d.textContent = w;
+    d.className = "warn-line";
+    const icon = document.createElement("span");
+    icon.className = "warn-icon";
+    icon.setAttribute("aria-hidden", "true");
+    const body = document.createElement("span");
+    if (w.startsWith("Private AI wasn't available")) {
+      const lead = document.createElement("strong");
+      lead.textContent = "Heads up.";
+      body.append(lead, ` ${w}`);
+    } else {
+      body.textContent = w;
+    }
+    d.append(icon, body);
     warn.appendChild(d);
   }
 }
@@ -382,8 +402,17 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
   const mk = (label: string, status: "ACCEPTED" | "REJECTED", testPrefix: string): HTMLButtonElement => {
     const b = document.createElement("button");
     b.type = "button";
-    b.textContent = label;
-    b.setAttribute("aria-pressed", String(!pending && group.every((g) => g.reviewStatus === status)));
+    const pressed = !pending && group.every((g) => g.reviewStatus === status);
+    if (pressed) {
+      const tick = document.createElement("span");
+      tick.className = "seg-tick";
+      tick.setAttribute("aria-hidden", "true");
+      tick.textContent = "\u2713 ";
+      b.append(tick, document.createTextNode(label));
+    } else {
+      b.textContent = label;
+    }
+    b.setAttribute("aria-pressed", String(pressed));
     b.setAttribute("data-testid", `${testPrefix}-${ent.id}`);
     b.setAttribute("aria-describedby", `meta-${ent.id}`);
     b.onclick = () =>
@@ -392,7 +421,7 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
       );
     return b;
   };
-  seg.append(mk("Hide", "ACCEPTED", "accept"), mk("Keep visible", "REJECTED", "reject"));
+  seg.append(mk("Hide", "ACCEPTED", "accept"), mk("Show", "REJECTED", "reject"));
 
   const more = document.createElement("details");
   more.className = "entity-more";
@@ -430,6 +459,24 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
   return card;
 }
 
+/** The privacy shield in the app bar: fills from the bottom as Review items are decided. */
+function renderShield(rc: ReturnType<typeof reviewCounts>): void {
+  const meter = el("shield-meter");
+  const show = currentStep === 2 && Boolean(controller.document) && !advancedOpen;
+  meter.hidden = !show;
+  if (!show) return;
+  const sp = shieldProgress(rc.hidden + rc.visible, rc.found);
+  meter.setAttribute("aria-label", sp.ariaLabel);
+  meter.classList.toggle("is-complete", sp.complete);
+  const top = 22 - (20 * sp.pct) / 100;
+  const fill = el("shield-fill");
+  fill.setAttribute("y", String(top));
+  fill.setAttribute("height", String(22 - top));
+  const [long, short] = Array.from(el("shield-text").children);
+  long.textContent = sp.complete ? "\u2713 All decided" : sp.label;
+  short.textContent = sp.complete ? "\u2713" : sp.shortLabel;
+}
+
 function renderReview(): void {
   const ents = controller.entities;
   const counts = ledgerCounts(ents);
@@ -451,12 +498,21 @@ function renderReview(): void {
     chip(`${rc.found} found`, "");
     if (rc.pending > 0) chip(`${rc.pending} need your decision`, "chip-warn");
     if (rc.hidden > 0) chip(`${rc.hidden} hidden`, "chip-ok");
-    if (rc.visible > 0) chip(`${rc.visible} kept visible`, "chip-err");
+    if (rc.visible > 0) chip(`${rc.visible} kept visible`, "");
+    if (rc.pending === 0) chip("All set, nothing left to choose.", "chip-ok");
   }
+  renderShield(rc);
 
   const warnText = controller.document ? fallbackReviewWarning(controller.readinessState) : null;
   el("review-fallback-warn").hidden = !warnText;
-  el("review-fallback-text").textContent = warnText ?? "";
+  const fbText = el("review-fallback-text");
+  if (warnText) {
+    const lead = document.createElement("strong");
+    lead.textContent = "Heads up.";
+    fbText.replaceChildren(lead, ` ${warnText}`);
+  } else {
+    fbText.textContent = "";
+  }
   const reviewDl = el<HTMLButtonElement>("btn-review-download");
   reviewDl.hidden = !warnText || !describeDeviceAi(controller.readinessState, null).canSetUp;
   reviewDl.disabled = busyText !== null;
@@ -561,9 +617,9 @@ function renderApprove(): void {
     status.textContent = "Only the cleaned text above was sent, once, after your approval.";
     status.classList.add("is-sent");
   } else if (approved && hybrid) {
-    status.textContent = "You approved this exact text. Nothing has been sent yet.";
+    status.textContent = "You approved this exact text. Nothing is sent yet.";
   } else if (hybrid) {
-    status.textContent = "Nothing has been sent. Approve below to allow it.";
+    status.textContent = "Nothing is sent yet. Approve below if you want it sent.";
   } else {
     status.textContent = `Nothing has been sent. ${describePrivacyMode(controller.privacyMode)}.`;
   }
@@ -625,7 +681,31 @@ function approveBlocker(): string | null {
   return null;
 }
 
+/** Documents already counted in the on-device tally this session (by document id). */
+const talliedDocs = new Set<string>();
+
+function renderFinish(): void {
+  const card = el("finish-card");
+  const done = controller.findings.length > 0 && Boolean(controller.document);
+  card.hidden = !done;
+  if (!done) return;
+  const n = ledgerCounts(controller.entities).hiddenTotal;
+  const sentToCloud = controller.lastCloudSdkSource === "in_cloud";
+  el("finish-title").textContent = `All done. ${n} detail${n === 1 ? "" : "s"} kept private.`;
+  el("finish-sub").textContent = sentToCloud ? "Only the cleaned text was sent." : "Nothing personal was sent.";
+  const docId = controller.document!.docId;
+  if (currentStep === 4 && !talliedDocs.has(docId)) {
+    talliedDocs.add(docId);
+    recordTally(n);
+  }
+  const pill = el("tally-pill");
+  const t = readTally();
+  pill.hidden = t.docs === 0;
+  pill.textContent = tallyText(t);
+}
+
 function renderResults(): void {
+  renderFinish();
   const list = el("findings-list");
   list.replaceChildren();
   el("findings-empty").hidden = controller.findings.length > 0;
@@ -1148,6 +1228,8 @@ async function initUi(): Promise<void> {
     if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("CG_LOCALHOST_APPCHECK_DEBUG");
     const ok = await run("Clearing everything…", () => controller.purgeAllSessionAndStorage());
     if (ok) {
+      clearTally();
+      talliedDocs.clear();
       noticeText = "Cleared. Your document, results and saved data are gone from this device.";
       goTo(1, false);
     }
