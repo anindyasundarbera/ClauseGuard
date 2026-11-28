@@ -113,6 +113,7 @@ const CATEGORY_LABELS: Record<EntityCategory, [string, string]> = {
   CURRENCY_CAP: ["money amount", "money amounts"],
   ADDRESS: ["street address", "street addresses"],
   ID_NUMBER: ["ID or reference number", "ID or reference numbers"],
+  DATE_OF_BIRTH: ["date of birth", "dates of birth"],
 };
 
 export function categoryLabel(cat: EntityCategory, count = 1): string {
@@ -308,7 +309,20 @@ export function reviewCounts(entities: DetectedEntity[]): {
  */
 export function detectionNote(row: DetectedEntity[]): string {
   if (row.some((e) => e.source === "HUMAN_ADDED")) return "added by you";
+  const labelled = row.find((e) => e.fieldLabel);
+  if (labelled) return `next to "${labelled.fieldLabel}"`;
   const best = row.reduce((a, b) => (b.confidence > a.confidence ? b : a));
   if (row.every((e) => e.source === "NANO_ON_DEVICE")) return "suggested by on-device AI";
   return `${Math.round(best.confidence * 100)}% sure`;
+}
+
+/** Review heading for a category, using the document profile's wording when it has one. */
+export function reviewHeading(
+  cat: EntityCategory,
+  count: number,
+  profileHeadings: Partial<Record<EntityCategory, [string, string]>> = {}
+): string {
+  const custom = profileHeadings[cat];
+  const text = custom ? (count === 1 ? custom[0] : custom[1]) : categoryLabel(cat, count);
+  return capitalize(text);
 }

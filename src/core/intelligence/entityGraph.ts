@@ -448,7 +448,8 @@ export function commitHumanApprovedToWorkspace(
       ent.category === "EMAIL" ||
       ent.category === "PHONE" ||
       ent.category === "ADDRESS" ||
-      ent.category === "ID_NUMBER"
+      ent.category === "ID_NUMBER" ||
+      ent.category === "DATE_OF_BIRTH"
     ) {
       continue; // UDR-007: Never persist credentials, financial values, or contact PII in workspace glossary
     }

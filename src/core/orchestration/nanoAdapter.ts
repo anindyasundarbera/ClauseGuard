@@ -6,6 +6,7 @@ import {
   InferenceSource,
 } from "../firebase/firebaseClient.ts";
 import { normalizeModelConfidence, vetModelCandidate } from "../detection/candidateFilters.ts";
+import type { DocumentProfile } from "../detection/documentProfiles.ts";
 import type {
   ContractFinding,
   EntityCategory,
@@ -576,6 +577,8 @@ export async function runChunkOnDeviceNano(
     signal?: AbortSignal;
     timeoutMs?: number;
     firebaseConfig?: Partial<FirebaseRuntimeConfig> | null;
+    /** Document profile: adds a prompt hint and limits which categories the model may suggest. */
+    profile?: Pick<DocumentProfile, "promptHint" | "modelCategories">;
   } = {}
 ): Promise<NanoChunkResult> {
   if (mode !== "ONLY_ON_DEVICE") {
@@ -610,7 +613,10 @@ export async function runChunkOnDeviceNano(
     const ai = getLocalOnlyFirebaseAI(opts.firebaseConfig);
     let result;
     try {
-      const model = createOnDeviceEntityModel(ai, ENTITY_SYSTEM_PROMPT);
+      const systemPrompt = opts.profile?.promptHint
+        ? `${ENTITY_SYSTEM_PROMPT} ${opts.profile.promptHint}`
+        : ENTITY_SYSTEM_PROMPT;
+      const model = createOnDeviceEntityModel(ai, systemPrompt);
       const fencedPrompt = `<untrusted_contract_chunk index="${chunk.chunkIndex}">\n${chunk.text}\n</untrusted_contract_chunk>`;
       result = await model.generateContent(fencedPrompt, { signal: ac.signal });
     } catch (firstErr) {
@@ -654,7 +660,10 @@ export async function runChunkOnDeviceNano(
           "Browser exposed Chromium echo stub instead of real Gemini Nano weights; failing closed to deterministic local mode with 0 cloud packets.",
       };
     }
-    const verified = extractGroundedEntitiesFromRawNanoOutput(rawResponse, chunk);
+    const allowed = opts.profile?.modelCategories;
+    const verified = extractGroundedEntitiesFromRawNanoOutput(rawResponse, chunk).filter(
+      (e) => !allowed || allowed.has(e.category)
+    );
 
     const wordCount = chunk.text.split(/\s+/).length;
     const suspiciousZero = verified.length === 0 && (wordCount > 400 || hasInjectionCue);

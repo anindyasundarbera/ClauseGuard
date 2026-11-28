@@ -129,7 +129,7 @@ export async function parsePdfBytes(
       const page = await pdf.getPage(pNum);
       const content = await page.getTextContent();
       let hiddenTextCount = 0;
-      const items = (content.items as Array<{ str?: string; transform?: number[]; height?: number }>)
+      const items = (content.items as Array<{ str?: string; transform?: number[]; height?: number; width?: number }>)
         .map((it) => {
           const text = it.str ?? "";
           const h = Math.abs(it.height ?? it.transform?.[3] ?? 10);
@@ -140,14 +140,40 @@ export async function parsePdfBytes(
             text,
             x: it.transform?.[4] ?? 0,
             y: it.transform?.[5] ?? 0,
+            w: it.width ?? 0,
+            h,
           };
         })
         .sort((a, b) => (Math.abs(b.y - a.y) > 4 ? b.y - a.y : a.x - b.x));
 
-      const pageText = items
-        .map((it) => it.text)
-        .join(" ")
-        .replace(/[ \t]{2,}/g, " ")
+      // Keep the page layout where it matters for forms: a wide horizontal gap (a table column)
+      // becomes a tab, and a line that stops well short of the right margin ends with a line
+      // break. Lines that run to the margin are wrapped prose and are joined with a space, so a
+      // name or company split across a wrap is still one phrase. Field detectors use the tabs and
+      // breaks to tell where a value ends ("Dr. A   Gender : M" is not read as one name).
+      const rightEdge = items.reduce((mx, it) => Math.max(mx, it.x + it.w), 0);
+      const leftEdge = items.reduce((mn, it) => Math.min(mn, it.x), Number.POSITIVE_INFINITY);
+      const wrapThreshold = leftEdge + (rightEdge - leftEdge) * 0.75;
+      let pageText = "";
+      let prev: (typeof items)[number] | null = null;
+      for (const it of items) {
+        if (prev) {
+          const newLine = Math.abs(prev.y - it.y) > 4;
+          const gap = it.x - (prev.x + prev.w);
+          if (newLine) {
+            pageText += prev.w > 0 && prev.x + prev.w < wrapThreshold ? "\n" : " ";
+          } else {
+            pageText += prev.w > 0 && gap > Math.max(12, prev.h * 2) ? "\t" : " ";
+          }
+        }
+        pageText += it.text;
+        prev = it;
+      }
+      pageText = pageText
+        .replace(/[ ]{2,}/g, " ")
+        .replace(/[ ]*([\t\n])[ ]*/g, "$1")
+        .replace(/\t{2,}/g, "\t")
+        .replace(/\n{3,}/g, "\n\n")
         .trim();
 
       if (pageText.length < MIN_DIGITAL_CHARS_PER_PAGE) {

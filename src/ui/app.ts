@@ -9,11 +9,10 @@ import type {
 } from "../core/types.ts";
 import { buildSamples } from "./samples.ts";
 import {
-  capitalize,
-  categoryLabel,
   detectionNote,
   groupForReview,
   reviewCounts,
+  reviewHeading,
   cleanFindingTitle,
   describeCloud,
   describeDeviceAi,
@@ -230,6 +229,9 @@ function renderReview(): void {
     chips.appendChild(c);
   };
   const rc = reviewCounts(ents);
+  if (controller.document && controller.documentProfile.kind !== "GENERAL") {
+    chip(`Looks like a ${controller.documentProfile.label}`, "chip-kind");
+  }
   if (ents.length > 0) {
     chip(`${rc.found} found`, "");
     if (rc.pending > 0) chip(`${rc.pending} need your decision`, "chip-warn");
@@ -243,7 +245,7 @@ function renderReview(): void {
     const section = document.createElement("section");
     const h = document.createElement("h3");
     h.className = "group-title";
-    h.textContent = capitalize(categoryLabel(cat, 2)) + ` (${rows.length})`;
+    h.textContent = reviewHeading(cat, 2, controller.documentProfile.headings) + ` (${rows.length})`;
     h.setAttribute("data-category", cat);
     section.appendChild(h);
     for (const row of rows) section.appendChild(entityRow(row));

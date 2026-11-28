@@ -340,3 +340,4 @@ a.btn { text-decoration: none; }
   .header-actions { width: 100%; }
   .header-actions .btn { flex: 1; }
 }
+.chip-kind { background: transparent; color: var(--accent-ink); border-style: dashed; }
