@@ -5,7 +5,7 @@
 Built for **#BuildHybridAI 2026** (Web / Chrome track) with **Firebase AI Logic hybrid inference**: the same SDK drives both the on-device model (`InferenceMode.ONLY_ON_DEVICE`) and the cloud model (`InferenceMode.ONLY_IN_CLOUD`), and the app checks `inferenceSource` on every response to prove which one answered.
 
 - Licence: [Apache-2.0](./LICENSE)
-- Hosted demo URL: **not deployed yet** (see [docs/deploy.md](docs/deploy.md); the owner fills this in: `TODO`)
+- Hosted demo URL: **https://clauseguard-hybrid-1c5e2.web.app** (Firebase Hosting; deploy steps in [docs/deploy.md](docs/deploy.md))
 - Demo video: `TODO` (script: [docs/demo-script.md](docs/demo-script.md))
 - Devpost text: [docs/devpost-text.md](docs/devpost-text.md)
 

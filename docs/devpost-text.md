@@ -7,7 +7,7 @@ Items marked **TODO** need the owner. Nothing below claims results that are not 
 - **Project name:** ClauseGuard Hybrid
 - **Platform selected:** Web (Chrome app, on-device Gemma/Gemini Nano via Firebase AI Logic)
 - **Repo (public, Apache-2.0):** https://github.com/anindyasundarbera/ClauseGuard (check the repo's About box shows "Apache-2.0" once public)
-- **Hosted URL:** TODO (see docs/deploy.md; free, no login for judges)
+- **Hosted URL:** https://clauseguard-hybrid-1c5e2.web.app (Firebase Hosting; free, no login for judges: see the confirmation item below)
 - **Video (YouTube, public, <= 3 min):** TODO
 
 ## Tagline (under 60 chars)
