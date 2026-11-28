@@ -21,9 +21,61 @@ export interface DeviceAiStatus {
   help: string;
   /** Whether the one-time model download / set-up button is relevant. */
   canSetUp: boolean;
+  /** Short app-bar label. */
+  chip: string;
+  /** Label for the combined phone chip. */
+  phoneChip: string;
+  /** Import-screen banner, or null when none is needed. */
+  banner: null | { kind: "download" | "downloading"; title: string; body: string; progressPct: number | null };
 }
 
 export function describeDeviceAi(state: NanoReadinessState, progressPct: number | null): DeviceAiStatus {
+  return { ...describeDeviceAiBase(state, progressPct), ...deviceAiExtras(state, progressPct) };
+}
+
+function deviceAiExtras(
+  state: NanoReadinessState,
+  progressPct: number | null
+): Pick<DeviceAiStatus, "chip" | "phoneChip" | "banner"> {
+  const pct = progressPct !== null ? ` ${progressPct}%` : "";
+  switch (state) {
+    case "CHECKING":
+      return { chip: "On-device AI: checking…", phoneChip: "Checking…", banner: null };
+    case "DOWNLOADABLE_PENDING_WEIGHTS":
+      return {
+        chip: "On-device AI: download needed",
+        phoneChip: "Setup needed",
+        banner: {
+          kind: "download",
+          title: "Get better name detection: download the private AI once",
+          body: "It runs only on this device and is kept by your browser. You can start now without it. Built-in rules still find numbers and emails, but may miss names.",
+          progressPct: null,
+        },
+      };
+    case "DOWNLOADING":
+      return {
+        chip: `On-device AI: downloading${pct}`,
+        phoneChip: `Downloading${pct}`,
+        banner: {
+          kind: "downloading",
+          title: `Downloading private AI…${pct}`,
+          body: "You can keep working. We switch to it when it is ready.",
+          progressPct,
+        },
+      };
+    case "READY_ON_DEVICE":
+      return { chip: "On-device AI: ready", phoneChip: "Private ✓", banner: null };
+    case "OFFLINE":
+      return { chip: "On-device AI: offline, using built-in rules", phoneChip: "Built-in rules", banner: null };
+    default:
+      return { chip: "On-device AI: off, using built-in rules", phoneChip: "Built-in rules", banner: null };
+  }
+}
+
+function describeDeviceAiBase(
+  state: NanoReadinessState,
+  progressPct: number | null
+): Pick<DeviceAiStatus, "tone" | "headline" | "help" | "canSetUp"> {
   const prefix = "Private AI on this device";
   switch (state) {
     case "READY_ON_DEVICE":
@@ -365,4 +417,91 @@ export function reviewAnnouncement(outcome: string, pendingRows: number): string
 export function reviewContinueBlocker(pendingRows: number): string | null {
   if (pendingRows === 0) return null;
   return `${pendingRows} detail${pendingRows === 1 ? " still needs" : "s still need"} a choice. Hide ${pendingRows === 1 ? "it" : "them"} and continue, or go back to choose.`;
+}
+
+/** Spoken (polite) updates during the model download: start, halfway, done. At most 3 per download. */
+export function downloadAnnouncement(
+  prevPct: number | null,
+  pct: number | null,
+  state: NanoReadinessState
+): string | null {
+  if (state === "READY_ON_DEVICE") return prevPct !== null ? "Private AI is ready" : null;
+  if (state !== "DOWNLOADING") return null;
+  if (pct === null) return null;
+  if (prevPct === null) return "Downloading private AI.";
+  if (prevPct < 50 && pct >= 50) return "Private AI download is halfway.";
+  return null;
+}
+
+/** Warning line on Review when built-in rules did the finding. */
+export function fallbackReviewWarning(state: NanoReadinessState): string | null {
+  switch (state) {
+    case "DOWNLOADABLE_PENDING_WEIGHTS":
+    case "UNAVAILABLE":
+    case "DISABLED":
+    case "DEGRADED_DETERMINISTIC_SAFE":
+      return "Found with built-in rules. Names may be missed. Download private AI for a better check.";
+    case "OFFLINE":
+    case "ERROR":
+      return "Found with built-in rules. Names may be missed.";
+    default:
+      return null;
+  }
+}
+
+/** First 8 hex chars of the payload SHA-256 as XXXX-XXXX, or null when there is none. */
+export function approvalId(sha256Hex: string | null | undefined): string | null {
+  if (!sha256Hex || sha256Hex === "NONE") return null;
+  const h = sha256Hex.trim();
+  if (!/^[0-9a-fA-F]{8,}/.test(h)) return null;
+  const u = h.slice(0, 8).toUpperCase();
+  return `${u.slice(0, 4)}-${u.slice(4)}`;
+}
+
+export type WhereChecked = "Checked in the cloud" | "Checked on this device" | "Practice run";
+
+export function whereCheckedLabel(source: string | null | undefined): WhereChecked {
+  switch (source) {
+    case "in_cloud":
+    case "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD":
+      return "Checked in the cloud";
+    case "SIMULATED_CLOUD_SYNTHESIS":
+      return "Practice run";
+    default:
+      return "Checked on this device";
+  }
+}
+
+export function practiceRunCard(
+  hasLiveCloudConfig: boolean,
+  simulationAllowed: boolean
+): { title: string; sub: string; badge: string | null } {
+  if (hasLiveCloudConfig) {
+    return {
+      title: "Send the cleaned text for a deeper check",
+      sub: "Only the text on the left is sent. Your names and numbers are not.",
+      badge: null,
+    };
+  }
+  if (simulationAllowed) {
+    return { title: "Practice run", sub: "A labelled local stand-in. Nothing is sent. Cloud is not set up.", badge: "Practice" };
+  }
+  return {
+    title: "Deeper check is not set up",
+    sub: "Cloud is not connected, so only the on-device check is available.",
+    badge: null,
+  };
+}
+
+export const FILE_LIMITS_TEXT =
+  "PDF up to 50 pages, Word or text. Up to 25 MB. Scanned PDFs (photos of pages) cannot be read yet.";
+
+export function occurrenceLabel(n: number): string {
+  return n === 1 ? "appears 1 time" : `appears ${n} times`;
+}
+
+/** Visible role tag for a contract role; null for the generic or unknown role. */
+export function roleTag(role: string | null | undefined): string | null {
+  if (!role || role === "PARTY") return null;
+  return roleLabel(role);
 }

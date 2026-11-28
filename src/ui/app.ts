@@ -142,6 +142,7 @@ function resetConsent(): void {
 function goTo(step: StepNumber, focus = true): void {
   if (step !== currentStep) noticeText = null;
   currentStep = step;
+  advancedOpen = false;
   renderAll();
   if (focus) el(`h-${step}`).focus({ preventScroll: false });
 }
@@ -171,15 +172,35 @@ function setBanner(id: string, text: string | null): void {
 }
 
 function renderStatusBar(): void {
-  const ai = describeDeviceAi(controller.readinessState, controller.getObservedFirebaseTelemetry().downloadProgressPct);
+  const telemetry = controller.getObservedFirebaseTelemetry();
+  const ai = describeDeviceAi(controller.readinessState, telemetry.downloadProgressPct);
   el("device-ai-dot").className = `dot dot-${ai.tone}`;
   el("device-ai-headline").textContent = ai.headline;
   el("device-ai-help").textContent = ai.help;
   el("btn-init-nano").hidden = !ai.canSetUp;
-  const cloud = describeCloud(controller.getObservedFirebaseTelemetry());
+  el("device-ai-chip").textContent = ai.chip;
+  const cloud = describeCloud(telemetry);
   el("cloud-dot").className = `dot dot-${cloud.tone}`;
   el("cloud-headline").textContent = cloud.headline;
+  el("cloud-chip").textContent = telemetry.hasLiveCloudConfig ? "Cloud: protected" : "Cloud: not set up";
+
+  // One combined chip and its sheet (phones and narrow windows).
+  el("status-dot").className = `dot dot-${ai.tone}`;
+  el("status-chip-label").textContent = ai.phoneChip;
+  el("status-sheet-device-dot").className = `dot dot-${ai.tone}`;
+  el("status-sheet-device").textContent = `${ai.headline}.`;
+  el("status-sheet-device-help").textContent = ai.help;
+  el("status-sheet-cloud-dot").className = `dot dot-${cloud.tone}`;
+  el("status-sheet-cloud").textContent = `${cloud.headline}.`;
+  el("status-sheet-progress").textContent =
+    telemetry.downloadProgressPct !== null ? `Download progress: ${telemetry.downloadProgressPct}%` : "";
+  const sheetInit = el<HTMLButtonElement>("btn-init-nano-sheet");
+  sheetInit.hidden = !ai.canSetUp;
+  sheetInit.disabled = busyText !== null;
 }
+
+/** True while the Advanced settings view replaces the step panels. */
+let advancedOpen = false;
 
 function renderStepper(maxStep: StepNumber): void {
   for (const btn of document.querySelectorAll<HTMLButtonElement>(".step")) {
@@ -190,17 +211,42 @@ function renderStepper(maxStep: StepNumber): void {
     else btn.removeAttribute("aria-current");
     btn.setAttribute("aria-label", `Step ${n}: ${STEP_TITLES[n]}${n < currentStep ? " (done)" : n === currentStep ? " (current)" : ""}`);
   }
-  for (const n of STEPS) el(`panel-${n}`).hidden = n !== currentStep;
-  // The Review page has a sticky action bar: keep focused rows from hiding behind it.
-  document.documentElement.classList.toggle("has-actionbar", currentStep === 2);
+  el("step-compact").textContent = `Step ${currentStep} of 4 · ${STEP_TITLES[currentStep]}`;
+  for (const seg of document.querySelectorAll<HTMLElement>(".step-progress [data-seg]")) {
+    seg.classList.toggle("is-on", Number(seg.dataset.seg) <= currentStep);
+  }
+  for (const n of STEPS) el(`panel-${n}`).hidden = advancedOpen || n !== currentStep;
+  el("advanced-view").hidden = !advancedOpen;
+  // Every step has the sticky action bar; Advanced settings has none.
+  document.documentElement.classList.toggle("no-actionbar", advancedOpen);
+  syncActionBarHeight();
+}
+
+/** Keep scroll padding and page padding equal to the real height of the visible action bar. */
+function syncActionBarHeight(): void {
+  const bar = advancedOpen ? null : el(`panel-${currentStep}`).querySelector<HTMLElement>(".action-bar");
+  const h = bar ? bar.getBoundingClientRect().height : 0;
+  if (h > 0) document.documentElement.style.setProperty("--actionbar-h", `${Math.ceil(h)}px`);
+}
+
+function renderImport(): void {
+  const hasDoc = Boolean(controller.document);
+  const btn = el<HTMLButtonElement>("btn-import-continue");
+  setAriaDisabled(btn, !hasDoc || busyText !== null);
+  const hint = el("import-continue-hint");
+  hint.textContent = hasDoc ? "" : "Choose a file first";
+  hint.hidden = hasDoc;
 }
 
 function renderUnderTheHood(): void {
   el("nano-readiness-badge").textContent = controller.readinessState;
   el("nano-readiness-detail").textContent = controller.readinessDetail;
   // One "on this device" choice in the UI; the safe-fallback variant is an internal detail.
-  el<HTMLSelectElement>("privacy-mode-select").value =
-    controller.privacyMode === "HYBRID_ANONYMIZED" ? "HYBRID_ANONYMIZED" : "LOCAL_ONLY";
+  const mode = controller.privacyMode === "HYBRID_ANONYMIZED" ? "HYBRID_ANONYMIZED" : "LOCAL_ONLY";
+  el<HTMLSelectElement>("privacy-mode-select").value = mode;
+  for (const r of document.querySelectorAll<HTMLInputElement>('input[name="privacy-mode"]')) {
+    r.checked = r.value === mode;
+  }
   el<HTMLSelectElement>("cloud-model-select").value = controller.selectedCloudModel;
   const t = controller.getObservedFirebaseTelemetry();
   el("firebase-project-badge").textContent = controller.firebaseConfig?.projectId ?? "UNCONFIGURED (local simulation)";
@@ -345,7 +391,7 @@ function renderReview(): void {
   list.replaceChildren();
   for (const [cat, rows] of groupForReview(ents)) {
     const section = document.createElement("section");
-    const h = document.createElement("h3");
+    const h = document.createElement("h2");
     h.className = "group-title";
     h.textContent = reviewHeading(cat, 2, controller.documentProfile.headings) + ` (${rows.length})`;
     h.setAttribute("data-category", cat);
@@ -455,13 +501,22 @@ function renderApprove(): void {
   approveBtn.hidden = approved && hybrid;
   analyzeBtn.disabled = !idle || !hasDoc || !hybrid || !approved;
   analyzeBtn.hidden = !(approved && hybrid);
-  el<HTMLButtonElement>("btn-local-triage").disabled = !idle || !controller.document;
+  const localBtn = el<HTMLButtonElement>("btn-local-triage");
+  localBtn.disabled = !idle || !controller.document;
+  // The primary button follows the choice: on this device only, the local check is the main action.
+  approveBtn.hidden = approveBtn.hidden || !hybrid;
+  localBtn.classList.toggle("btn-primary", !hybrid);
+  localBtn.classList.toggle("action-main", !hybrid);
+  localBtn.classList.toggle("btn-outline", hybrid);
+  localBtn.classList.toggle("action-secondary", hybrid);
+  el("approve-more-menu").closest<HTMLElement>(".action-more")!.classList.toggle("is-empty", !hybrid);
+  el("consent-box").hidden = !hybrid;
 
   let hint = "";
   if (snap.state === "STALE_APPROVAL_INVALIDATED") hint = "You changed something after approving, so approval was reset. Check the text and approve again.";
   else if (unresolved > 0) hint = `${unresolved} item${unresolved === 1 ? " still needs" : "s still need"} a decision in Review.`;
   else if (approved && !hybrid) hint = "Approved, but the deeper check is set to stay on this device. Choose “Send the cleaned text” above to run it.";
-  else if (!consent && !approved) hint = "Tick the box to enable approval.";
+  else if (hybrid && !consent && !approved) hint = "Tick the box to enable approval.";
   el("approve-hint").textContent = hint;
 }
 
@@ -495,7 +550,7 @@ function renderResults(): void {
     const sev = document.createElement("span");
     sev.className = `chip ${f.severity === "HIGH" ? "chip-err" : f.severity === "MEDIUM" ? "chip-warn" : "chip-ok"}`;
     sev.textContent = severityLabel(f.severity);
-    const title = document.createElement("h3");
+    const title = document.createElement("h2");
     title.className = "finding-title";
     title.textContent = cleanFindingTitle(f.title);
     head.append(sev, title);
@@ -533,6 +588,7 @@ function renderAll(): void {
   renderStatusBar();
   renderBanners();
   renderStepper(maxStep);
+  renderImport();
   renderSamples();
   renderReview();
   renderApprove();
@@ -551,6 +607,47 @@ async function importDocument(
   openMoreRows.clear();
   const ok = await run("Reading your document on this device…", () => controller.ingestFileOrText(input));
   if (ok) goTo(2);
+}
+
+/**
+ * A small disclosure menu or popover: toggles on its button, closes on Esc and on a click outside,
+ * and returns focus to the button when closed from inside. Returns a function that closes it.
+ */
+function wireDisclosure(btn: HTMLElement, panel: HTMLElement, opts: { focusFirst?: boolean } = {}): (returnFocus?: boolean) => void {
+  const wrap = btn.parentElement ?? btn;
+  const set = (open: boolean, returnFocus = false): void => {
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    if (open && opts.focusFirst) {
+      panel.querySelector<HTMLElement>('.menu-item:not([hidden]), [role="radio"][aria-checked="true"]')?.focus();
+    } else if (!open && returnFocus) {
+      btn.focus();
+    }
+  };
+  btn.addEventListener("click", () => set(panel.hidden));
+  const onKey = (ev: KeyboardEvent): void => {
+    if (ev.key === "Escape" && !panel.hidden) {
+      ev.preventDefault();
+      set(false, true);
+    }
+  };
+  panel.addEventListener("keydown", onKey);
+  btn.addEventListener("keydown", onKey);
+  document.addEventListener("click", (ev) => {
+    if (!panel.hidden && !wrap.contains(ev.target as Node)) set(false);
+  });
+  return (returnFocus = false) => set(false, returnFocus);
+}
+
+function setAdvanced(open: boolean): void {
+  advancedOpen = open;
+  renderAll();
+  if (open) {
+    window.scrollTo({ top: 0 });
+    el("advanced-title").focus();
+  } else {
+    el("btn-app-menu").focus();
+  }
 }
 
 async function initUi(): Promise<void> {
@@ -852,8 +949,72 @@ async function initUi(): Promise<void> {
     });
   });
 
+  // App bar: status popovers, combined status sheet, ⋯ menu, Advanced settings
+  wireDisclosure(el("chip-device"), el("pop-device"));
+  wireDisclosure(el("chip-cloud"), el("pop-cloud"));
+  const statusSheet = el<HTMLDialogElement>("status-sheet");
+  el("chip-status").addEventListener("click", () => {
+    statusSheet.showModal();
+    el("status-sheet-title").focus();
+  });
+  el("btn-status-sheet-close").addEventListener("click", () => statusSheet.close());
+  statusSheet.addEventListener("close", () => el("chip-status").focus());
+  statusSheet.addEventListener("click", (ev) => {
+    if (ev.target === statusSheet) statusSheet.close();
+  });
+  el("btn-init-nano-sheet").addEventListener("click", () => {
+    statusSheet.close();
+    el("btn-init-nano").click();
+  });
+  const closeAppMenu = wireDisclosure(el("btn-app-menu"), el("app-menu"), { focusFirst: true });
+  el("btn-open-advanced").addEventListener("click", () => {
+    closeAppMenu();
+    setAdvanced(true);
+  });
+  el("btn-close-advanced").addEventListener("click", () => setAdvanced(false));
+  el("advanced-view").addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !(ev.target as Element).closest("select, textarea, input")) setAdvanced(false);
+  });
+
+  // Phone: secondary actions sit in a ⋯ menu in the bar; each item presses the real button.
+  for (const [btnId, menuId] of [["btn-approve-more", "approve-more-menu"], ["btn-results-more", "results-more-menu"]]) {
+    const close = wireDisclosure(el(btnId), el(menuId), { focusFirst: true });
+    for (const item of el(menuId).querySelectorAll<HTMLButtonElement>("[data-proxy]")) {
+      item.addEventListener("click", () => {
+        close(true);
+        el<HTMLButtonElement>(item.dataset.proxy ?? "").click();
+      });
+    }
+  }
+
+  // Import: Continue goes on only once a document is loaded.
+  el("btn-import-continue").addEventListener("click", () => {
+    if (controller.document && busyText === null) {
+      goTo(2);
+      return;
+    }
+    el("file-input").focus();
+  });
+
+  // Approve: radio cards drive the (visually hidden) select, which the app logic listens to.
+  const modeSelect = el<HTMLSelectElement>("privacy-mode-select");
+  for (const r of document.querySelectorAll<HTMLInputElement>('input[name="privacy-mode"]')) {
+    r.addEventListener("change", () => {
+      if (!r.checked || modeSelect.value === r.value) return;
+      modeSelect.value = r.value;
+      modeSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  // Keep page padding equal to the action bar, which can wrap at narrow widths or large text.
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => syncActionBarHeight());
+    for (const bar of document.querySelectorAll(".action-bar")) ro.observe(bar);
+  }
+
   // Clear everything
   el("btn-purge").addEventListener("click", async () => {
+    closeAppMenu(true);
     resetConsent();
     el<HTMLTextAreaElement>("firebase-config-json").value = "";
     el<HTMLInputElement>("recaptcha-site-key").value = "";
