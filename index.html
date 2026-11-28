@@ -43,7 +43,9 @@
           <button id="chip-device" data-testid="chip-device" type="button" class="status-chip" aria-expanded="false" aria-controls="pop-device">
             <span id="device-ai-dot" class="dot dot-busy" aria-hidden="true"></span>
             <span id="device-ai-chip">On-device AI: checking…</span>
+            <span id="device-ai-chip-bar" class="chip-progress" aria-hidden="true" hidden><span id="device-ai-chip-fill"></span></span>
           </button>
+          <button id="btn-chip-download" data-testid="btn-chip-download" type="button" class="btn btn-small btn-outline chip-download" hidden>Download<span class="visually-hidden"> private AI</span></button>
           <div id="pop-device" class="popover" hidden>
             <p id="device-ai-headline" data-testid="device-ai-status" class="pop-title">Checking for private AI on this device…</p>
             <p id="device-ai-help" class="pop-text">&nbsp;</p>
@@ -76,11 +78,12 @@
         <div id="app-menu" data-testid="app-menu" class="app-menu" role="group" aria-label="Menu" hidden>
           <div class="menu-theme">
             <span class="menu-label" id="theme-label">Theme</span>
-            <div id="theme-choice" class="theme-choice" role="radiogroup" aria-label="Theme">
+            <div id="theme-choice" class="theme-choice" role="radiogroup" aria-label="Theme" aria-labelledby="theme-label">
               <button type="button" role="radio" aria-checked="true" data-theme-choice="system">System</button>
               <button type="button" role="radio" aria-checked="false" data-theme-choice="light">Light</button>
               <button type="button" role="radio" aria-checked="false" data-theme-choice="dark">Dark</button>
             </div>
+            <span data-theme-note class="small muted theme-note"></span>
           </div>
           <a class="menu-item" href="./guide.html" target="_blank" rel="noopener">Guide<span class="visually-hidden"> (opens in a new tab)</span></a>
           <button id="btn-open-advanced" data-testid="btn-open-advanced" type="button" class="menu-item">Advanced settings</button>
@@ -121,11 +124,23 @@
         <p class="lede">It stays on this device while you work. Nothing is uploaded.</p>
       </div>
 
+      <section id="ai-banner" data-testid="ai-banner" class="ai-banner" aria-labelledby="ai-banner-title" hidden>
+        <div class="ai-banner-text">
+          <h2 id="ai-banner-title" class="ai-banner-title">Get better name detection</h2>
+          <progress id="ai-banner-progress" class="ai-progress" max="100" value="0" aria-label="Private AI download progress" hidden></progress>
+          <p id="ai-banner-body" class="ai-banner-body"></p>
+        </div>
+        <div class="ai-banner-actions">
+          <button id="btn-banner-download" data-testid="btn-banner-download" type="button" class="btn btn-outline">Download private AI</button>
+          <button id="btn-banner-hide" data-testid="btn-banner-hide" type="button" class="btn btn-ghost">Not now</button>
+        </div>
+      </section>
+
       <div class="cols cols-7-5">
         <div class="col-main">
           <label class="dropzone" id="dropzone" for="file-input">
             <span class="dropzone-title">Choose a file or drop it here</span>
-            <span class="dropzone-sub">PDF, Word (.docx) or text (.txt, .md). It is not uploaded.</span>
+            <span class="dropzone-sub" id="file-limits"></span>
             <span class="btn btn-outline dropzone-btn" aria-hidden="true">Choose a file</span>
             <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
           </label>
@@ -163,9 +178,13 @@
           </div>
           <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
         </div>
-        <aside class="col-side side-sticky" aria-label="Summary and tools">
+        <section class="col-side side-sticky" aria-label="Summary and tools">
           <div class="box review-summary-box">
             <div id="review-summary" class="summary-chips"></div>
+            <p id="review-fallback-warn" data-testid="review-fallback-warn" class="side-warn" hidden>
+              <span id="review-fallback-text"></span>
+              <button id="btn-review-download" data-testid="btn-review-download" type="button" class="btn btn-small btn-outline" hidden>Download</button>
+            </p>
             <p class="tip"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people’s names. Add any name below.</p>
           </div>
           <form id="manual-entity-form" class="box manual-form" aria-labelledby="manual-title">
@@ -188,7 +207,7 @@
             </div>
             <button id="btn-add-entity" type="submit" class="btn btn-outline btn-block">Hide it everywhere</button>
           </form>
-        </aside>
+        </section>
       </div>
 
       <!-- Sticky action bar: the same on every step. -->
@@ -260,7 +279,7 @@
             </label>
             <label class="radio-card">
               <input type="radio" name="privacy-mode" value="HYBRID_ANONYMIZED" data-testid="privacy-mode-hybrid" />
-              <span><span class="radio-title">Send the cleaned text for a deeper check</span><span class="radio-sub">Only the text shown is sent. Your names and numbers are not.</span></span>
+              <span><span class="radio-title"><span id="hybrid-title">Send the cleaned text for a deeper check</span> <span id="hybrid-badge" class="chip chip-warn" hidden></span></span><span class="radio-sub" id="hybrid-sub">Only the text shown is sent. Your names and numbers are not.</span></span>
             </label>
           </fieldset>
           <!-- Kept in sync with the radio cards so existing logic and tests can still drive it. -->
@@ -274,6 +293,7 @@
               <input id="chk-explicit-consent" data-testid="chk-explicit-consent" type="checkbox" />
               <span>I read the cleaned text. I approve sending <strong>only this text</strong> for the deeper check.</span>
             </label>
+            <p id="approval-id-line" class="approval-id" hidden><strong>Approval ID: <span id="approval-id" data-testid="approval-id"></span></strong> <span class="muted">Any change resets this approval</span></p>
           </div>
           <p id="approve-hint" class="approve-hint" aria-live="polite"></p>
         </div>
@@ -313,10 +333,10 @@
           </div>
           <div id="findings-list" data-testid="findings-list" class="findings-list"></div>
         </div>
-        <aside class="col-side side-sticky" aria-label="About these results">
+        <section class="col-side side-sticky" aria-label="About these results">
           <div id="results-source" class="source-note" hidden></div>
           <p class="box disclaimer">ClauseGuard points out things worth asking about. It is not legal, medical or money advice and can miss things.</p>
-        </aside>
+        </section>
       </div>
 
       <div id="results-actionbar" data-testid="results-actionbar" class="action-bar" role="region" aria-label="Actions">

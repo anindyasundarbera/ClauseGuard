@@ -8,6 +8,7 @@ import type {
   SupportedFirebaseCloudModel,
 } from "../core/types.ts";
 import { buildSamples } from "./samples.ts";
+import { initThemeControls } from "./theme.ts";
 import {
   detectionNote,
   groupForReview,
@@ -16,6 +17,14 @@ import {
   cleanFindingTitle,
   describeCloud,
   describeDeviceAi,
+  approvalId,
+  downloadAnnouncement,
+  fallbackReviewWarning,
+  FILE_LIMITS_TEXT,
+  occurrenceLabel,
+  practiceRunCard,
+  roleTag,
+  whereCheckedLabel,
   describePrivacyMode,
   findingSourceLabel,
   friendlyError,
@@ -179,6 +188,15 @@ function renderStatusBar(): void {
   el("device-ai-help").textContent = ai.help;
   el("btn-init-nano").hidden = !ai.canSetUp;
   el("device-ai-chip").textContent = ai.chip;
+  const chipDl = el<HTMLButtonElement>("btn-chip-download");
+  chipDl.hidden = !ai.canSetUp;
+  chipDl.disabled = busyText !== null;
+  const downloading = controller.readinessState === "DOWNLOADING";
+  const pct = telemetry.downloadProgressPct;
+  el("device-ai-chip-bar").hidden = !downloading;
+  el("device-ai-chip-fill").style.width = `${pct ?? 0}%`;
+  renderAiBanner(ai);
+  announceDownload(pct);
   const cloud = describeCloud(telemetry);
   el("cloud-dot").className = `dot dot-${cloud.tone}`;
   el("cloud-headline").textContent = cloud.headline;
@@ -197,6 +215,37 @@ function renderStatusBar(): void {
   const sheetInit = el<HTMLButtonElement>("btn-init-nano-sheet");
   sheetInit.hidden = !ai.canSetUp;
   sheetInit.disabled = busyText !== null;
+}
+
+let bannerDismissed = false;
+try { bannerDismissed = sessionStorage.getItem("cg-ai-banner-hidden") === "1"; } catch { /* storage may be blocked */ }
+let prevDownloadPct: number | null = null;
+
+function renderAiBanner(ai: ReturnType<typeof describeDeviceAi>): void {
+  const box = el("ai-banner");
+  const b = ai.banner;
+  box.hidden = !b || bannerDismissed;
+  if (!b) return;
+  box.dataset.kind = b.kind;
+  el("ai-banner-title").textContent = b.title;
+  el("ai-banner-body").textContent = b.body;
+  const bar = el<HTMLProgressElement>("ai-banner-progress");
+  bar.hidden = b.kind !== "downloading";
+  if (b.kind === "downloading") {
+    bar.value = b.progressPct ?? 0;
+    bar.setAttribute("aria-valuenow", String(b.progressPct ?? 0));
+  }
+  const dl = el<HTMLButtonElement>("btn-banner-download");
+  dl.hidden = b.kind !== "download";
+  dl.disabled = busyText !== null;
+  el("btn-banner-hide").textContent = b.kind === "download" ? "Not now" : "Hide";
+}
+
+function announceDownload(pct: number | null): void {
+  const msg = downloadAnnouncement(prevDownloadPct, pct, controller.readinessState);
+  if (controller.readinessState === "DOWNLOADING") prevDownloadPct = pct ?? prevDownloadPct;
+  else if (controller.readinessState === "READY_ON_DEVICE" || controller.readinessState !== "CHECKING") prevDownloadPct = null;
+  if (msg) announce(msg);
 }
 
 /** True while the Advanced settings view replaces the step panels. */
@@ -230,6 +279,7 @@ function syncActionBarHeight(): void {
 }
 
 function renderImport(): void {
+  el("file-limits").textContent = FILE_LIMITS_TEXT;
   const hasDoc = Boolean(controller.document);
   const btn = el<HTMLButtonElement>("btn-import-continue");
   setAriaDisabled(btn, !hasDoc || busyText !== null);
@@ -267,7 +317,12 @@ function renderBanners(): void {
   setBanner("notice-box", noticeText);
   const warn = el("warnings-box");
   warn.replaceChildren();
-  const shown = plainWarnings(controller.warnings);
+  let shown = plainWarnings(controller.warnings);
+  // On Review the side panel already carries the built-in-rules warning, so do not say it twice.
+  // After Review the warning ("double-check the list in Review") no longer helps, so drop it there too.
+  if ((currentStep === 2 && fallbackReviewWarning(controller.readinessState)) || currentStep > 2) {
+    shown = shown.filter((w) => !w.startsWith("Private AI wasn't available for this document"));
+  }
   warn.hidden = shown.length === 0;
   for (const w of shown) {
     const d = document.createElement("div");
@@ -299,13 +354,21 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
   meta.className = "entity-meta";
   meta.id = `meta-${ent.id}`;
   const parts = [detectionNote(group)];
-  if (group.length > 1) parts.push(`appears ${group.length} times`);
+  if (group.length > 1) parts.push(occurrenceLabel(group.length));
   const how = parts.join(" · ");
   meta.textContent = pending
     ? `Needs your decision · ${how}`
     : ent.reviewStatus === "ACCEPTED"
       ? `Will be hidden · ${how}`
       : `Will stay visible · ${how}`;
+  const tagText = roleTag(ent.role);
+  if (tagText) {
+    const tag = document.createElement("span");
+    tag.className = "chip chip-kind role-tag";
+    tag.textContent = tagText;
+    tag.setAttribute("data-testid", `role-tag-${ent.id}`);
+    surface.append(" ", tag);
+  }
   main.append(surface, meta);
 
   const seg = document.createElement("div");
@@ -386,6 +449,14 @@ function renderReview(): void {
     if (rc.hidden > 0) chip(`${rc.hidden} hidden`, "chip-ok");
     if (rc.visible > 0) chip(`${rc.visible} kept visible`, "chip-err");
   }
+
+  const warnText = controller.document ? fallbackReviewWarning(controller.readinessState) : null;
+  el("review-fallback-warn").hidden = !warnText;
+  el("review-fallback-text").textContent = warnText ?? "";
+  const reviewDl = el<HTMLButtonElement>("btn-review-download");
+  reviewDl.hidden = !warnText || !describeDeviceAi(controller.readinessState, null).canSetUp;
+  reviewDl.disabled = busyText !== null;
+  el("manual-entity-form").classList.toggle("is-highlight", Boolean(warnText));
 
   const list = el("airlock-list");
   list.replaceChildren();
@@ -511,6 +582,23 @@ function renderApprove(): void {
   localBtn.classList.toggle("action-secondary", hybrid);
   el("approve-more-menu").closest<HTMLElement>(".action-more")!.classList.toggle("is-empty", !hybrid);
   el("consent-box").hidden = !hybrid;
+  const aid = approvalId(controller.redaction?.sanitizedSha256);
+  el("approval-id-line").hidden = aid === null;
+  el("approval-id").textContent = aid ?? "";
+  const card = practiceRunCard(
+    controller.getObservedFirebaseTelemetry().hasLiveCloudConfig,
+    el<HTMLInputElement>("chk-sim-cloud").checked
+  );
+  el("hybrid-title").textContent = card.title;
+  el("hybrid-sub").textContent = card.sub;
+  const badge = el("hybrid-badge");
+  badge.hidden = !card.badge;
+  badge.textContent = card.badge ?? "";
+  const notSetUp = card.title === "Deeper check is not set up";
+  const hybridRadio = document.querySelector<HTMLInputElement>('input[name="privacy-mode"][value="HYBRID_ANONYMIZED"]')!;
+  hybridRadio.setAttribute("aria-disabled", String(notSetUp));
+  hybridRadio.closest("label")?.classList.toggle("is-disabled", notSetUp);
+  if (notSetUp && controller.privacyMode === "HYBRID_ANONYMIZED") controller.privacyMode = "LOCAL_ONLY";
 
   let hint = "";
   if (snap.state === "STALE_APPROVAL_INVALIDATED") hint = "You changed something after approving, so approval was reset. Check the text and approve again.";
@@ -553,7 +641,10 @@ function renderResults(): void {
     const title = document.createElement("h2");
     title.className = "finding-title";
     title.textContent = cleanFindingTitle(f.title);
-    head.append(sev, title);
+    const where = document.createElement("span");
+    where.className = "chip chip-kind where-badge";
+    where.textContent = whereCheckedLabel(f.analysisSource === "SIMULATED_CLOUD_SYNTHESIS" ? f.analysisSource : (f.observedInferenceSource ?? f.analysisSource));
+    head.append(sev, title, where);
 
     const quote = document.createElement("blockquote");
     quote.className = "finding-quote";
@@ -660,6 +751,15 @@ async function initUi(): Promise<void> {
   }
   el<HTMLInputElement>("chk-debug-appcheck").checked = Boolean(controller.firebaseConfig?.debugAppCheckToken);
 
+  const themeGroup = el("theme-choice");
+  if (!themeGroup.querySelector("[data-theme-note]")) {
+    const note = document.createElement("span");
+    note.className = "small muted theme-note";
+    note.setAttribute("data-theme-note", "");
+    themeGroup.after(note);
+  }
+  initThemeControls(el("theme-choice"));
+
   // Samples
   const grid = el("sample-buttons");
   for (const smp of buildSamples()) {
@@ -715,12 +815,21 @@ async function initUi(): Promise<void> {
     if (file) await handleFile(file);
   });
 
-  // Device AI setup
+  // Device AI setup. Every Download button forwards to the one real button.
   el("btn-init-nano").addEventListener("click", async () => {
     await run("Setting up private AI on this device…", async () => {
       await controller.initializeOnDeviceModel(() => renderAll());
     });
   });
+  for (const id of ["btn-chip-download", "btn-banner-download", "btn-review-download"]) {
+    el(id).addEventListener("click", () => el("btn-init-nano").click());
+  }
+  el("btn-banner-hide").addEventListener("click", () => {
+    bannerDismissed = true;
+    try { sessionStorage.setItem("cg-ai-banner-hidden", "1"); } catch { /* storage may be blocked */ }
+    renderAll();
+  });
+  el<HTMLInputElement>("chk-sim-cloud").addEventListener("change", () => renderAll());
 
   // Review
   el("btn-accept-all").addEventListener("click", () =>
@@ -1001,6 +1110,11 @@ async function initUi(): Promise<void> {
   for (const r of document.querySelectorAll<HTMLInputElement>('input[name="privacy-mode"]')) {
     r.addEventListener("change", () => {
       if (!r.checked || modeSelect.value === r.value) return;
+      if (r.getAttribute("aria-disabled") === "true") {
+        r.checked = false;
+        document.querySelector<HTMLInputElement>('input[name="privacy-mode"][value="LOCAL_ONLY"]')!.checked = true;
+        return;
+      }
       modeSelect.value = r.value;
       modeSelect.dispatchEvent(new Event("change", { bubbles: true }));
     });

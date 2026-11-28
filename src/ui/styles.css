@@ -162,6 +162,7 @@ html.no-actionbar body { padding-bottom: env(safe-area-inset-bottom, 0px); }
 .status-chip[aria-expanded="true"] { border-color: var(--accent); }
 .status-narrow { display: none; }
 .pop-wrap { position: relative; }
+@media (min-width: 641px) { .status-wide { display: flex; align-items: center; } }
 .popover {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 20rem; max-width: calc(100vw - 2rem);
   padding: 0.9rem 1rem; background: var(--surface); color: var(--ink);
@@ -518,3 +519,39 @@ html.guide-page body, body:has(.page.guide) { padding-bottom: 0; }
   .header-actions .btn { flex: 1; }
 }
 .action-more.is-empty { display: none !important; }
+
+/* Device AI states: chip bar, inline Download, Import banner, Review warning */
+.chip-progress { display: inline-block; width: 36px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.chip-progress > span { display: block; height: 100%; width: 0; background: var(--accent); }
+.chip-download { min-height: 36px; margin-left: 0.4rem; padding: 0.15rem 0.7rem; font-size: 0.82rem; }
+.ai-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.25rem;
+  margin: 0 0 1rem; padding: 0.9rem 1.1rem; border-radius: var(--radius);
+  background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-line);
+}
+.ai-banner[hidden] { display: none; }
+.ai-banner-text { flex: 1 1 22rem; min-width: 0; }
+.ai-banner-title { font-size: 1rem; margin: 0 0 0.25rem; }
+.ai-banner-body { margin: 0.25rem 0 0; font-size: 0.92rem; }
+.ai-progress { width: 100%; max-width: 24rem; height: 8px; display: block; margin-top: 0.4rem; accent-color: var(--accent); }
+.ai-progress[hidden] { display: none; }
+.ai-banner-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.side-warn {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0.6rem 0.8rem;
+  border-radius: 10px; background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-line); font-size: 0.9rem;
+}
+.side-warn[hidden] { display: none; }
+.manual-form.is-highlight { border: 2px solid var(--warn-line); }
+.role-tag { margin-left: 0.35rem; font-size: 0.75rem; padding: 0.1rem 0.5rem; vertical-align: middle; }
+.where-badge { margin-left: auto; font-size: 0.78rem; white-space: nowrap; }
+.approval-id { margin: 0.6rem 0 0; font-size: 0.9rem; }
+.approval-id strong { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.radio-card.is-disabled { opacity: 0.7; }
+.radio-card.is-disabled input { cursor: not-allowed; }
+.theme-note { display: block; margin-top: 0.35rem; }
+.theme-choice { background: var(--surface-2); }
+@media (max-width: 640px) {
+  .chip-download { display: none; }
+  .ai-banner { padding: 0.75rem 0.9rem; }
+  .ai-banner-actions .btn { flex: 1 1 auto; }
+}
