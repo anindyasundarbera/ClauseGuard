@@ -344,6 +344,9 @@ function placeNoticeBoard(): void {
   const work = panel?.querySelector<HTMLElement>(".work");
   const wb = el("warnings-box");
   if (work && wb.parentElement !== work) work.prepend(wb);
+  // The privacy lock floats at the top-right of the current step's notice area.
+  const lock = el("privacy-lock");
+  if (slot && lock.parentElement !== slot) slot.appendChild(lock);
   // Info notes: only the current step's note shows. They update in place.
   for (const n of b.querySelectorAll<HTMLElement>("[data-info]")) n.hidden = n.dataset.info !== String(currentStep);
 }
