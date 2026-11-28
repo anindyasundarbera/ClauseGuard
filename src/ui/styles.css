@@ -872,6 +872,8 @@ a.menu-item { text-decoration: none; align-items: flex-start; }
   .side-panel > .area { flex: none; }
   .side-panel > .area-notice { flex: 1 0 8.5rem; overflow: hidden; }
   .area-notice > .notice-board { flex: 1 1 0; min-height: 0; }
+  /* Notices start at the top, just under the lock button's row, newest last. */
+  .area-notice > .notice-board::before { margin-top: 0; flex: none; height: 46px; }
   .site-footer { display: none; }
   .action-more { display: block; }
 }
