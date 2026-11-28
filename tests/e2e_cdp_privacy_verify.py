@@ -529,6 +529,7 @@ def run_verification() -> dict[str, Any]:
             }
 
             # 14: Session purge clears RAM, DOM, and IndexedDB
+            page.click('[data-testid="btn-app-menu"]')
             page.click('[data-testid="btn-purge"]')
             time.sleep(0.3)
             after_purge_sha = page.text_content('[data-testid="payload-sha"]')

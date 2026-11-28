@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light dark" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none';" />
+  <script src="./theme-boot.js"></script>
   <title>ClauseGuard user guide</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./src/ui/fonts.css" />
   <link rel="stylesheet" href="./src/ui/styles.css" />
 </head>
 <!-- Keep this page in step with docs/user-guide.md. -->
@@ -15,11 +18,12 @@
   <header class="site-header" role="banner">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true" focusable="false">
-        <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="currentColor" opacity=".16"/>
-        <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-        <circle cx="16" cy="13.5" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
-        <path d="M16 16.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-      </svg>
+          <path d="M16 3 26 6.5v8.5c0 6.5-4.25 11-10 14-5.75-3-10-7.5-10-14V6.5Z" fill="currentColor" opacity=".14"/>
+          <path d="M16 3 26 6.5v8.5c0 6.5-4.25 11-10 14-5.75-3-10-7.5-10-14V6.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <rect x="11" y="10.5" width="10" height="2" rx="1" fill="currentColor"/>
+          <rect x="11" y="14.5" width="10" height="2" rx="1" fill="currentColor" opacity=".45"/>
+          <rect x="11" y="18.5" width="6.5" height="2" rx="1" fill="currentColor"/>
+        </svg>
       <div>
         <p class="brand-name">ClauseGuard</p>
         <p class="tagline">User guide</p>
@@ -37,9 +41,10 @@
       <p>No account or sign-in is needed. Use Chrome on a desktop or laptop.</p>
 
       <nav class="guide-toc" aria-label="On this page">
+        <a href="#layout">The top and bottom bars</a>
         <a href="#steps">Step by step</a>
         <a href="#where">What stays on your device</a>
-        <a href="#status">The status bar</a>
+        <a href="#status">The status chips</a>
         <a href="#limits">Limits</a>
       </nav>
 
@@ -51,11 +56,34 @@
         <li><strong>Read the results</strong>, with your real names and numbers put back on your device.</li>
       </ol>
 
+      <h2 id="layout">The top bar and the bottom bar</h2>
+      <p>The top bar is one row. It shows the four steps (<strong>Import</strong>, <strong>Review</strong>, <strong>Approve</strong>, <strong>Results</strong>), two status chips, <strong>Guide</strong>, and the <strong>⋯</strong> menu. You can go back to a step you have finished. The step you are on is marked.</p>
+      <ul>
+        <li><strong>Status chips.</strong> <strong>On-device AI</strong> and <strong>Cloud</strong> show a short status in words. Click a chip to read the full sentence.</li>
+        <li><strong>⋯ menu.</strong> Pick a theme (<strong>System</strong>, <strong>Light</strong> or <strong>Dark</strong>), open <strong>Advanced settings</strong>, or press <strong>Clear everything</strong>. Clear everything asks you to confirm first.</li>
+        <li><strong>On a phone.</strong> The top bar shows "Step N of 4", the step name and a progress bar. One status chip opens a sheet with both status lines. The <strong>⋯</strong> menu has the same items.</li>
+      </ul>
+      <p>The bottom bar is on every step and stays on screen while you scroll. <strong>Back</strong> is on the left. The main button is on the right.</p>
+      <div class="guide-table-wrap">
+        <table class="guide-table">
+          <thead>
+            <tr><th scope="col">Step</th><th scope="col">Bottom bar</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Import</td><td><strong>Continue</strong> (it says <strong>Choose a file first</strong> until you pick a file)</td></tr>
+            <tr><td>Review</td><td><strong>Back</strong>, <strong>Hide all</strong> (it shows how many), <strong>⋯</strong> and <strong>Continue</strong></td></tr>
+            <tr><td>Approve</td><td><strong>Back</strong>, <strong>Check on this device only</strong> and <strong>Approve this exact text</strong></td></tr>
+            <tr><td>Results</td><td><strong>Back</strong>, <strong>Download privacy report</strong> and <strong>Check another document</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+
       <h2 id="steps">Step by step</h2>
 
       <h3>1. Import</h3>
       <ul>
-        <li>Drop a file on the page or press <strong>Choose a document</strong>. PDF, Word (.docx), .txt and .md are supported.</li>
+        <li>Drop a file on the page or press <strong>Choose a file</strong>. PDF, Word (.docx), .txt and .md are supported.</li>
+        <li>Limits: PDFs up to 50 pages, Word or text files, and files up to 25 MB. <strong>Scanned PDFs (photos of pages) cannot be read yet.</strong></li>
         <li>Or pick a sample under <strong>Or try a sample</strong>. All samples are made up:
           <ul>
             <li><strong>Apartment lease</strong>: deposit, early exit, entry and auto-renewal clauses.</li>
@@ -67,31 +95,38 @@
         </li>
       </ul>
       <p>The file is read in your browser tab. Nothing is uploaded when you import it.</p>
+      <p>If the on-device AI needs a one-time download, a banner under the title offers <strong>Download private AI</strong> or <strong>Not now</strong>. You can start now without it. Built-in rules still find numbers and emails, but may miss names. While the AI downloads, you can keep working. ClauseGuard switches to it when it is ready. You do not need to wait.</p>
 
       <h3>2. Review</h3>
       <p>ClauseGuard lists the names, contact details, account numbers and amounts it found. For each one, choose whether to hide it.</p>
-      <p>ClauseGuard first works out what kind of document it is (a contract, a medical report, a bill or a bank statement) and says so at the top of the list, for example "Looks like a medical report". The headings follow from that, such as "Patients, doctors and relatives" or "Patient and record numbers". Values printed next to a form label, such as "Patient Name :", "UHID :", "DOB :" or "Mobile No :", are found and hidden automatically, and the row tells you which label it was next to. An item that appears several times is listed once.</p>
+      <p>ClauseGuard first works out what kind of document it is (a contract, a medical report, a bill or a bank statement) and says so at the top of the list, for example "Looks like a medical report". You can change the type with <strong>Change</strong> if it guessed wrong. The headings follow from that, such as "Patients, doctors and relatives" or "Patient and record numbers". Values printed next to a form label, such as "Patient Name :", "UHID :", "DOB :" or "Mobile No :", are found and hidden automatically, and the row tells you which label it was next to.</p>
+      <p>Each row says how many times the item appears, for example "appears 4 times". The item is listed once. For a contract, each row also shows a role tag, such as <strong>Client</strong>, <strong>Vendor</strong> or <strong>Signatory</strong>. To change a role, open the row's <strong>⋯</strong> menu and pick one.</p>
+      <p>On a wide screen, a summary panel sits on the right. It shows how many items were found and how many still need a choice. Above the list, a short box lists any very small or invisible text and any words with look-alike letters, so you can decide.</p>
       <ul>
-        <li>The buttons stay in a bar at the bottom of the screen while you scroll. <strong>Hide all</strong> (it shows how many) hides every item still waiting for a choice. The <strong>⋯</strong> button next to it has more one-click actions: hide all names, hide all numbers and IDs, hide everything on the list, undo your last change, and add something we missed.</li>
-        <li>Automatic detection is good at numbers and emails but <strong>can miss people's names</strong>. Read the list, and if something is missing, type it under <strong>Hide something we missed</strong>, pick what it is and press <strong>Hide it everywhere</strong>. It is hidden in every place it appears.</li>
+        <li>The bottom bar stays on screen while you scroll. <strong>Hide all</strong> (it shows how many) hides every item still waiting for a choice. The <strong>⋯</strong> button next to it has more one-click actions: hide all names, hide all numbers and IDs, hide everything on the list, undo your last change, and add something we missed.</li>
+        <li>Automatic detection is good at numbers and emails but <strong>can miss people's names</strong>. Read the list, and if something is missing, type it under <strong>Hide something we missed</strong>, pick what it is (person, company, address and so on) and press <strong>Hide it everywhere</strong>. It is hidden in every place it appears.</li>
+        <li>If the on-device AI is not ready, the summary says "Found with built-in rules. Names may be missed." It offers a <strong>Download</strong> button for private AI.</li>
         <li>Press <strong>Continue</strong> when you are happy. If some items still need a choice, ClauseGuard asks you to hide them or go back and choose. Nothing undecided is ever sent.</li>
       </ul>
       <p>Hidden items are swapped for labelled placeholders in square brackets, so the AI still knows "this is the tenant" or "this is an amount" without seeing the real value.</p>
 
       <h3>3. Approve</h3>
-      <p>This page shows <strong>What leaves your device</strong>: the full cleaned text, exactly as it would be sent. Read it. Then choose one of two paths.</p>
+      <p>This page shows <strong>What leaves your device</strong>: the full cleaned text, exactly as it would be sent. Read it. Then choose one of two paths. Each path is a card.</p>
       <ul>
         <li><strong>Check on this device only.</strong> Nothing is sent anywhere. You get a lighter local check.</li>
         <li><strong>Send the cleaned text for a deeper check.</strong> Choose this option, tick the box confirming you read the text, press <strong>Approve this exact text</strong>, then <strong>Run the deeper check</strong>.</li>
+        <li><strong>No cloud set up?</strong> The second card is a <strong>Practice run</strong>. It is a labelled stand-in that runs on this device. Nothing is sent.</li>
       </ul>
-      <p>Your approval is tied to that exact text. If anything changes after you approve, the approval is cancelled and nothing is sent until you approve again. A last automatic scan also blocks the send if any hidden value is still in the text.</p>
+      <p>Next to the box you see an <strong>Approval ID</strong>, such as 7F3A-91C2. It identifies the exact text you approved. Any change resets this approval, so you must approve again.</p>
+      <p>Your approval is tied to that exact text. If anything changes after you approve (for example, you go back and un-hide an item), the approval is cancelled and nothing is sent until you approve again. A last automatic scan also blocks the send if any hidden value is still in the text.</p>
 
       <h3>4. Results</h3>
       <p>You get a list of things worth asking about, such as a clause that cancels another, a surprise fee or a short deadline. Placeholders are swapped back to your real names and numbers <strong>on your device</strong>, so the results read naturally.</p>
+      <p>Each finding says where it was checked: <strong>Checked in the cloud</strong>, <strong>Checked on this device</strong> or <strong>Practice run</strong>.</p>
       <ul>
-        <li><strong>Download privacy report</strong> saves a small JSON file describing what was hidden, what was sent and where the check ran. It contains counts and fingerprints (hashes), not your document text.</li>
+        <li><strong>Download privacy report</strong> saves a two-page PDF report, made on your device. It shows how many details were hidden and of what kind, what was sent, where the check ran and what it found, with a ClauseGuard seal. It uses the same light or dark look as the app; the Results ⋯ pane also offers a Light report (good for printing) and a Dark report. It contains counts and fingerprints (hashes), never your names or numbers. The raw JSON version is under <strong>Advanced settings</strong>.</li>
         <li><strong>Check another document</strong> starts over.</li>
-        <li><strong>Clear everything</strong> (top of the page) removes your document, results and any saved data from this device.</li>
+        <li><strong>Clear everything</strong> is in the <strong>⋯</strong> menu at the top. It removes your document, results and any saved data from this device.</li>
       </ul>
 
       <h2 id="where">What stays on your device and what goes to the cloud</h2>
@@ -111,26 +146,26 @@
       </div>
       <p>The deeper check uses Google's Gemini model through Firebase AI Logic, protected by Firebase App Check. If you never approve, nothing is sent.</p>
 
-      <h2 id="status">The status bar at the top</h2>
+      <h2 id="status">The status chips</h2>
       <ul>
-        <li><strong>Private AI on this device</strong> shows whether Chrome's built-in model (Gemma) is ready. If it offers <strong>Set up private AI</strong>, pressing it downloads the model. This is a large download (about 2.3 GB) and only works on recent Chrome with the built-in AI features turned on. <strong>You do not need it.</strong> Without it, ClauseGuard finds sensitive details with built-in rules, and nothing is sent to the cloud instead.</li>
-        <li><strong>Deeper check</strong> says either "cloud connected and protected" (a real Gemini check is available) or "cloud not set up, so it runs on this device". In that case the deeper check is a clearly labelled simulation on your device and nothing is sent.</li>
+        <li><strong>On-device AI</strong> shows whether Chrome's built-in model (Gemma) is ready. It can say "checking", "download needed", "downloading" with a percentage, "ready", or "off, using built-in rules". If a download is needed, press <strong>Download</strong> to start it. This is a large download (about 2.3 GB) and only works on recent Chrome with the built-in AI features turned on. <strong>You do not need it.</strong> Without it, ClauseGuard finds sensitive details with built-in rules, and nothing is sent to the cloud instead.</li>
+        <li><strong>Cloud</strong> says either "protected" (a real Gemini check is available) or "not set up, so it runs on this device". In that case the deeper check is a clearly labelled practice run on your device and nothing is sent.</li>
       </ul>
-      <p>The <strong>Under the hood</strong> section at the bottom of the app is for developers and judges. It shows which model answered (on-device or in the cloud), the approval fingerprint and a 16-field privacy report.</p>
+      <p>The <strong>Advanced settings</strong> page is opened from the <strong>⋯</strong> menu. It is for developers and testers. It shows which model answered (on-device or in the cloud), the approval fingerprint and a 16-field privacy report.</p>
 
       <h2 id="limits">Limits</h2>
       <ul>
         <li><strong>Not legal, medical or financial advice.</strong> ClauseGuard points out things worth asking about. It can miss things.</li>
-        <li><strong>Detection is not perfect.</strong> On our own made-up test set it found about 87% of sensitive items. Anything it misses and you do not add yourself will be sent if you approve. Read the cleaned text before you approve it.</li>
+        <li><strong>Detection is not perfect.</strong> On our own made-up test set it found about 87% of sensitive items. Anything it misses and you do not add yourself will be sent if you approve. That is why the review step exists. Read the cleaned text before you approve it.</li>
         <li><strong>Indirect references can survive.</strong> A phrase like "the landlord's CEO" is not a name, so it is not hidden.</li>
-        <li><strong>Digital documents only.</strong> Scanned PDFs are not read. Files are limited to 25 MB and PDFs to 50 pages.</li>
+        <li><strong>Digital documents only.</strong> Scanned PDFs (photos of pages) cannot be read yet. Files are limited to 25 MB and PDFs to 50 pages.</li>
         <li><strong>On-device AI depends on your machine.</strong> It has been tested on one Linux laptop with Chrome 156 and 158. Elsewhere Chrome may report it unavailable, and ClauseGuard keeps working with its built-in rules.</li>
         <li><strong>Built for Chrome on desktop.</strong> Other browsers and phones are untested.</li>
         <li><strong>Unsure? Use a sample.</strong> The samples show the full flow without any of your own data.</li>
       </ul>
 
       <h2>Optional: the encrypted vault</h2>
-      <p>Under the hood there is an optional vault that saves the list of hidden items (not the document) in your browser, encrypted with a passphrase you choose. It has not had an external security review, so treat it as experimental.</p>
+      <p>In <strong>Advanced settings</strong> there is an optional vault that saves the list of hidden items (not the document) in your browser, encrypted with a passphrase you choose. It has not had an external security review, so treat it as experimental.</p>
 
       <div class="step-actions">
         <a class="btn btn-primary" href="./index.html">Open ClauseGuard</a>

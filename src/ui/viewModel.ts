@@ -21,9 +21,61 @@ export interface DeviceAiStatus {
   help: string;
   /** Whether the one-time model download / set-up button is relevant. */
   canSetUp: boolean;
+  /** Short app-bar label. */
+  chip: string;
+  /** Label for the combined phone chip. */
+  phoneChip: string;
+  /** Import-screen banner, or null when none is needed. */
+  banner: null | { kind: "download" | "downloading"; title: string; body: string; progressPct: number | null };
 }
 
 export function describeDeviceAi(state: NanoReadinessState, progressPct: number | null): DeviceAiStatus {
+  return { ...describeDeviceAiBase(state, progressPct), ...deviceAiExtras(state, progressPct) };
+}
+
+function deviceAiExtras(
+  state: NanoReadinessState,
+  progressPct: number | null
+): Pick<DeviceAiStatus, "chip" | "phoneChip" | "banner"> {
+  const pct = progressPct !== null ? ` ${progressPct}%` : "";
+  switch (state) {
+    case "CHECKING":
+      return { chip: "On-device AI: checking…", phoneChip: "Checking…", banner: null };
+    case "DOWNLOADABLE_PENDING_WEIGHTS":
+      return {
+        chip: "On-device AI: download needed",
+        phoneChip: "Setup needed",
+        banner: {
+          kind: "download",
+          title: "Get better name detection: download the private AI once",
+          body: "It runs only on this device and is kept by your browser. You can start now without it. Built-in rules still find numbers and emails, but may miss names.",
+          progressPct: null,
+        },
+      };
+    case "DOWNLOADING":
+      return {
+        chip: `On-device AI: downloading${pct}`,
+        phoneChip: `Downloading${pct}`,
+        banner: {
+          kind: "downloading",
+          title: `Downloading private AI…${pct}`,
+          body: "You can keep working. We switch to it when it is ready.",
+          progressPct,
+        },
+      };
+    case "READY_ON_DEVICE":
+      return { chip: "On-device AI: ready", phoneChip: "Private ✓", banner: null };
+    case "OFFLINE":
+      return { chip: "On-device AI: offline, using built-in rules", phoneChip: "Built-in rules", banner: null };
+    default:
+      return { chip: "On-device AI: off, using built-in rules", phoneChip: "Built-in rules", banner: null };
+  }
+}
+
+function describeDeviceAiBase(
+  state: NanoReadinessState,
+  progressPct: number | null
+): Pick<DeviceAiStatus, "tone" | "headline" | "help" | "canSetUp"> {
   const prefix = "Private AI on this device";
   switch (state) {
     case "READY_ON_DEVICE":
@@ -70,10 +122,31 @@ export function describeDeviceAi(state: NanoReadinessState, progressPct: number 
   }
 }
 
-export function describeCloud(t: ObservedFirebaseTelemetry): { tone: Tone; headline: string } {
-  return t.hasLiveCloudConfig
-    ? { tone: "ok", headline: "Deeper check: cloud connected and protected" }
-    : { tone: "neutral", headline: "Deeper check: cloud not set up, so it runs on this device and nothing is sent" };
+export function describeCloud(
+  t: ObservedFirebaseTelemetry,
+  refused = false
+): { tone: Tone; headline: string; chip: string } {
+  if (!t.hasLiveCloudConfig) {
+    return {
+      tone: "neutral",
+      headline: "Deeper check: cloud not set up, so it runs on this device and nothing is sent",
+      chip: "Cloud: not set up",
+    };
+  }
+  if (refused) {
+    return {
+      tone: "warn",
+      headline: "Deeper check: the cloud could not confirm this app is genuine, so nothing was sent",
+      chip: "Cloud: blocked",
+    };
+  }
+  return { tone: "ok", headline: "Deeper check: cloud connected and protected", chip: "Cloud: protected" };
+}
+
+/** True when the cloud refused the app's App Check attestation (nothing was sent). */
+export function isCloudVerificationError(err: unknown): boolean {
+  const raw = err instanceof Error ? `${err.name} ${err.message}` : String(err ?? "");
+  return /ERR_APP_CHECK|attestation/i.test(raw);
 }
 
 export function describeApproval(state: ApprovalState): string {
@@ -191,9 +264,9 @@ export function severityLabel(s: ContractFinding["severity"]): string {
 export function findingSourceLabel(f: ContractFinding): { label: string; sent: boolean } {
   switch (f.analysisSource) {
     case "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD":
-      return { label: "Deeper check in the cloud — cleaned text only", sent: true };
+      return { label: "Deeper check in the cloud, cleaned text only", sent: true };
     case "SIMULATED_CLOUD_SYNTHESIS":
-      return { label: "Practice mode — ran on this device, nothing was sent", sent: false };
+      return { label: "Practice mode, ran on this device, nothing was sent", sent: false };
     case "FIREBASE_AI_LOGIC_ONLY_ON_DEVICE_TRIAGE":
       return { label: "Checked by private AI on this device", sent: false };
     default:
@@ -202,7 +275,39 @@ export function findingSourceLabel(f: ContractFinding): { label: string; sent: b
 }
 
 export function cleanFindingTitle(title: string): string {
-  return title.replace(/^\s*\[[A-Z_]+\]\s*/, "").trim() || "Finding";
+  let t = title.replace(/^\s*\[[A-Z_]+\]\s*/, "");
+  // Engine names are for Advanced settings, not for the person reading the result.
+  t = t.replace(/\s*\((?:[^)]*(?:Firebase|ONLY_[A-Z_]+|Gemini|Nano|SDK)[^)]*)\)/gi, "");
+  t = t.replace(/^\s*(?:Local|On-Device|On Device)\s+(?:Deterministic\s+|Gemini\s+Nano\s+)?(?:Clause\s+)?Triage\s*:?\s*/i, "");
+  t = t.replace(/\b(?:Gemini\s+Nano|Firebase|Deterministic|Nano)\b\s*/gi, "").replace(/\bONLY_[A-Z_]+\b/g, "");
+  t = t.replace(/\s{2,}/g, " ").replace(/^[\s:\-]+|[\s:\-]+$/g, "");
+  return t || "Worth a closer look";
+}
+
+/** The toast shown after Continue hides details the person had not decided on. */
+export function undecidedHiddenText(n: number): string {
+  return `${n} undecided detail${n === 1 ? " was" : "s were"} hidden.`;
+}
+
+/** Feedback under the "Hide something we missed" form. */
+export function manualAddFeedback(
+  surface: string,
+  places: number,
+  categoryText: string
+): { ok: boolean; text: string } {
+  if (places === 0) {
+    return { ok: false, text: `We couldn't find \u201c${surface}\u201d in the document. Check the spelling and capitalization.` };
+  }
+  return {
+    ok: true,
+    text: `Hidden in ${places} place${places === 1 ? "" : "s"}. Added to the list as ${categoryText}.`,
+  };
+}
+
+/** One quiet line under the Results heading once the check is done. */
+export function finishLede(hiddenCount: number, sentToCloud: boolean): string {
+  const n = `${hiddenCount} detail${hiddenCount === 1 ? "" : "s"} kept private.`;
+  return `${n} ${sentToCloud ? "Only the cleaned text was sent." : "Nothing personal was sent."}`;
 }
 
 /** Strip class names and error-code prefixes so people see a sentence, not a stack trace. */
@@ -229,7 +334,7 @@ export function furthestStep(hasDocument: boolean, hasFindings: boolean): StepNu
 }
 
 export const STEP_TITLES: Record<StepNumber, string> = {
-  1: "Import",
+  1: "Start",
   2: "Review",
   3: "Approve",
   4: "Results",
@@ -365,4 +470,144 @@ export function reviewAnnouncement(outcome: string, pendingRows: number): string
 export function reviewContinueBlocker(pendingRows: number): string | null {
   if (pendingRows === 0) return null;
   return `${pendingRows} detail${pendingRows === 1 ? " still needs" : "s still need"} a choice. Hide ${pendingRows === 1 ? "it" : "them"} and continue, or go back to choose.`;
+}
+
+/** Spoken (polite) updates during the model download: start, halfway, done. At most 3 per download. */
+export function downloadAnnouncement(
+  prevPct: number | null,
+  pct: number | null,
+  state: NanoReadinessState
+): string | null {
+  if (state === "READY_ON_DEVICE") return prevPct !== null ? "Private AI is ready" : null;
+  if (state !== "DOWNLOADING") return null;
+  if (pct === null) return null;
+  if (prevPct === null) return "Downloading private AI.";
+  if (prevPct < 50 && pct >= 50) return "Private AI download is halfway.";
+  return null;
+}
+
+/** Warning line on Review when built-in rules did the finding. */
+export function fallbackReviewWarning(state: NanoReadinessState): string | null {
+  switch (state) {
+    case "DOWNLOADABLE_PENDING_WEIGHTS":
+    case "UNAVAILABLE":
+    case "DISABLED":
+    case "DEGRADED_DETERMINISTIC_SAFE":
+      return "Found with built-in rules. Names may be missed. Download private AI for a better check.";
+    case "OFFLINE":
+    case "ERROR":
+      return "Found with built-in rules. Names may be missed.";
+    default:
+      return null;
+  }
+}
+
+/** First 8 hex chars of the payload SHA-256 as XXXX-XXXX, or null when there is none. */
+export function approvalId(sha256Hex: string | null | undefined): string | null {
+  if (!sha256Hex || sha256Hex === "NONE") return null;
+  const h = sha256Hex.trim();
+  if (!/^[0-9a-fA-F]{8,}/.test(h)) return null;
+  const u = h.slice(0, 8).toUpperCase();
+  return `${u.slice(0, 4)}-${u.slice(4)}`;
+}
+
+export type WhereChecked = "Checked in the cloud" | "Checked on this device" | "Practice run";
+
+export function whereCheckedLabel(source: string | null | undefined): WhereChecked {
+  switch (source) {
+    case "in_cloud":
+    case "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD":
+      return "Checked in the cloud";
+    case "SIMULATED_CLOUD_SYNTHESIS":
+      return "Practice run";
+    default:
+      return "Checked on this device";
+  }
+}
+
+export function practiceRunCard(
+  hasLiveCloudConfig: boolean,
+  simulationAllowed: boolean
+): { title: string; sub: string; badge: string | null } {
+  if (hasLiveCloudConfig) {
+    return {
+      title: "Send the cleaned text for a deeper check",
+      sub: "Only the text on the left is sent. Your names and numbers are not.",
+      badge: null,
+    };
+  }
+  if (simulationAllowed) {
+    return { title: "Practice run", sub: "A labelled local stand-in. Nothing is sent. Cloud is not set up.", badge: "Practice" };
+  }
+  return {
+    title: "Deeper check is not set up",
+    sub: "Cloud is not connected, so only the on-device check is available.",
+    badge: null,
+  };
+}
+
+export const FILE_LIMITS_TEXT =
+  "PDF up to 50 pages, Word or text. Up to 25 MB. Scanned PDFs (photos of pages) cannot be read yet.";
+
+export function occurrenceLabel(n: number): string {
+  return n === 1 ? "appears 1 time" : `appears ${n} times`;
+}
+
+/** Visible role tag for a contract role; null for the generic or unknown role. */
+export function roleTag(role: string | null | undefined): string | null {
+  if (!role || role === "PARTY") return null;
+  return roleLabel(role);
+}
+
+/** The privacy shield in the app bar: how much of the Review list has a decision. */
+export function shieldProgress(decided: number, total: number): {
+  pct: number;
+  label: string;
+  shortLabel: string;
+  ariaLabel: string;
+  complete: boolean;
+} {
+  const t = Math.max(0, Math.floor(total));
+  const d = Math.min(t, Math.max(0, Math.floor(decided)));
+  const complete = t > 0 && d === t;
+  const pct = t === 0 ? 0 : Math.round((d / t) * 100);
+  return {
+    pct,
+    complete,
+    label: complete ? "All decided" : `${d} of ${t} decided`,
+    shortLabel: complete ? "All decided" : `${d}/${t}`,
+    ariaLabel: complete ? "All details decided" : `${d} of ${t} details decided`,
+  };
+}
+
+/**
+ * Plain words for a finding. The built-in on-device checks carry engine wording in their title and
+ * rationale; people see what it means for them instead. Other findings keep their own message.
+ */
+export function plainFinding(f: ContractFinding): { title: string; message: string } {
+  if (f.findingId === "LOCAL-TRIAGE-DET-1") {
+    return f.severity === "HIGH"
+      ? {
+          title: "A limit on what they must pay may not hold",
+          message:
+            "This part talks about unlimited costs or things left out of a limit. Check whether a cap on what one side pays really applies, or whether another clause cancels it.",
+        }
+      : {
+          title: "Nothing unusual stood out",
+          message: "The part we checked looks like a standard clause. It is still worth reading the whole document yourself.",
+        };
+  }
+  let message = (f.rationale || f.rehydratedExcerpt || f.anonymizedExcerpt || "").trim();
+  message = message
+    .replace(/^\s*Nano weights unavailable locally;\s*/i, "")
+    .replace(/\s*with 0 outbound network requests/i, "")
+    .replace(/\bdeterministic\s+/gi, "");
+  if (message) message = message.charAt(0).toUpperCase() + message.slice(1);
+  return { title: cleanFindingTitle(f.title), message };
+}
+
+/** The small "where it was checked" line under a finding, without internal clause labels. */
+export function findingFootText(f: ContractFinding): string {
+  const refs = f.clauseRefs.filter((r) => !/^Selected Local Clause$/i.test(r));
+  return `${findingSourceLabel(f).label}${refs.length ? ` · ${refs.join(", ")}` : ""}`;
 }
