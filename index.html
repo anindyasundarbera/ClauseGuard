@@ -24,7 +24,10 @@
         <p class="tagline">Read the fine print. Keep your private details private.</p>
       </div>
     </div>
-    <button id="btn-purge" data-testid="btn-purge" class="btn btn-quiet" type="button">Clear everything</button>
+    <div class="header-actions">
+      <a id="link-user-guide" data-testid="link-user-guide" class="btn btn-quiet" href="./guide.html" target="_blank" rel="noopener">User guide<span class="visually-hidden"> (opens in a new tab)</span></a>
+      <button id="btn-purge" data-testid="btn-purge" class="btn btn-quiet" type="button">Clear everything</button>
+    </div>
   </header>
 
   <div class="status-bar" role="region" aria-label="Privacy status">
@@ -277,7 +280,7 @@
   </main>
 
   <footer class="site-footer">
-    <p>Your document is read in this browser tab. Cloud checks only ever see text you approved, with names and numbers replaced.</p>
+    <p>Your document is read in this browser tab. Cloud checks only ever see text you approved, with names and numbers replaced. New here? Read the <a href="./guide.html" target="_blank" rel="noopener">user guide</a>.</p>
   </footer>
 
   <script type="module" src="./src/ui/app.ts"></script>

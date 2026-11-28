@@ -6,6 +6,7 @@ Built for **#BuildHybridAI 2026** (Web / Chrome track) with **Firebase AI Logic 
 
 - Licence: [Apache-2.0](./LICENSE)
 - Hosted demo URL: **https://clauseguard-hybrid-1c5e2.web.app** (Firebase Hosting; deploy steps in [docs/deploy.md](docs/deploy.md))
+- User guide (plain language, for judges and end users): [docs/user-guide.md](docs/user-guide.md)
 - Demo video: `TODO` (script: [docs/demo-script.md](docs/demo-script.md))
 - Devpost text: [docs/devpost-text.md](docs/devpost-text.md)
 
@@ -83,7 +84,7 @@ Everything below is backed by a file in [`evidence/`](evidence/) or a unit test.
 | Chrome Prompt API behaviour, token budgets | [`phase2-nano-runtime-matrix.json`](evidence/phase2-nano-runtime-matrix.json): 14-experiment matrix on Chrome 156 | Older Chrome; superseded for readiness by the wo062 file |
 | Remote Config cannot weaken privacy | `tests/unit/firebase_hardening.test.ts` | |
 
-A real (non-mock) Firebase AI Logic cloud call from this repo is **not recorded in the evidence files**. Earlier commit messages mention a live call; treat it as unverified until you re-run it and save the output (see Limitations).
+One real (non-mock) Firebase AI Logic cloud call is recorded in [`live-cloud-gemini-run.json`](evidence/live-cloud-gemini-run.json) (screenshot: [`live-cloud-gemini-results.png`](evidence/live-cloud-gemini-results.png)): run on 2026-11-27 through the four-step UI with simulation off, sample `sample-msa-trap`, model `gemini-3.5-flash-lite`, status PASS. It ran on localhost with an App Check debug token, not on the hosted site. How to reproduce it: [docs/live-cloud-run.md](docs/live-cloud-run.md).
 
 ## 6. Run and test
 
@@ -134,7 +135,7 @@ Hardware actually tested (from the evidence files): Linux x86_64, 16 logical cor
 - **Not legal or medical advice.** Output is a first-pass risk flag, not a review by a professional.
 - Detection is not perfect (recall 0.872 on our own synthetic corpus). The review step exists because of that; a missed item you do not add will be sent.
 - On-device Gemma improved entity finding on one of two samples in the live proof; most detection is deterministic. We make no accuracy claim for Gemma.
-- Live cloud inference is covered only against a mock in the committed evidence. Re-run once against the real Firebase project and save the result before claiming it.
+- Live cloud inference is recorded for a single run (one sample, one model, localhost with an App Check debug token); the broader egress scenarios use a mock cloud endpoint.
 - On-device results depend on Chrome version, flags, hardware and profile state; tested on one Linux machine, Chrome 156 and 158.
 - Digital PDFs only (no OCR); PDF page limit enforced (`ERR_PDF_PAGE_LIMIT`).
 - The optional vault uses AES-GCM in the browser with a user passphrase; it has not had an external security review.

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none';" />
+  <title>ClauseGuard user guide</title>
+  <link rel="stylesheet" href="./src/ui/styles.css" />
+</head>
+<!-- Keep this page in step with docs/user-guide.md. -->
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="site-header" role="banner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" width="34" height="34" aria-hidden="true" focusable="false">
+        <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="currentColor" opacity=".16"/>
+        <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <circle cx="16" cy="13.5" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M16 16.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <p class="brand-name">ClauseGuard</p>
+        <p class="tagline">User guide</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a class="btn btn-primary" href="./index.html" data-testid="guide-open-app">Open ClauseGuard</a>
+    </div>
+  </header>
+
+  <main id="main" class="page guide" role="main">
+    <article class="panel">
+      <h1>How to use ClauseGuard</h1>
+      <p class="lead">ClauseGuard helps you check a lease, a medical bill or a contract for risky clauses <strong>without handing your private details to a cloud AI</strong>. It reads the document inside your browser, hides names, account numbers and amounts, shows you the exact cleaned text, and only sends that cleaned text for a deeper AI check if you approve it.</p>
+      <p>No account or sign-in is needed. Use Chrome on a desktop or laptop.</p>
+
+      <nav class="guide-toc" aria-label="On this page">
+        <a href="#steps">Step by step</a>
+        <a href="#where">What stays on your device</a>
+        <a href="#status">The status bar</a>
+        <a href="#limits">Limits</a>
+      </nav>
+
+      <h2>The short version</h2>
+      <ol>
+        <li><strong>Import</strong> a document or pick a sample.</li>
+        <li><strong>Review</strong> the sensitive details it found. Add anything it missed.</li>
+        <li><strong>Approve</strong> the exact cleaned text, or keep everything on your device.</li>
+        <li><strong>Read the results</strong>, with your real names and numbers put back on your device.</li>
+      </ol>
+
+      <h2 id="steps">Step by step</h2>
+
+      <h3>1. Import</h3>
+      <ul>
+        <li>Drop a file on the page or press <strong>Choose a document</strong>. PDF, Word (.docx), .txt and .md are supported.</li>
+        <li>Or pick a sample under <strong>Or try a sample</strong>. All samples are made up:
+          <ul>
+            <li><strong>Apartment lease</strong>: deposit, early exit, entry and auto-renewal clauses.</li>
+            <li><strong>Hospital bill</strong>: a duplicate charge, a surprise fee and a collections deadline.</li>
+            <li><strong>Business services agreement</strong>: a liability cap that a later clause quietly cancels.</li>
+            <li><strong>Data processing addendum</strong>: look-alike company names and roles that switch sides.</li>
+            <li><strong>Tricky NDA (hidden text test)</strong>: hidden characters and instructions aimed at the AI. Safe to try.</li>
+          </ul>
+        </li>
+      </ul>
+      <p>The file is read in your browser tab. Nothing is uploaded when you import it.</p>
+
+      <h3>2. Review</h3>
+      <p>ClauseGuard lists the names, contact details, account numbers and amounts it found. For each one, choose whether to hide it.</p>
+      <ul>
+        <li><strong>Hide all suggested items</strong> accepts the whole list in one click.</li>
+        <li>Automatic detection is good at numbers and emails but <strong>can miss people's names</strong>. Read the list, and if something is missing, type it under <strong>Hide something we missed</strong>, pick what it is and press <strong>Hide it everywhere</strong>. It is hidden in every place it appears.</li>
+        <li>Press <strong>Continue to approval</strong> when you are happy.</li>
+      </ul>
+      <p>Hidden items are swapped for labelled placeholders in square brackets, so the AI still knows "this is the tenant" or "this is an amount" without seeing the real value.</p>
+
+      <h3>3. Approve</h3>
+      <p>This page shows <strong>What leaves your device</strong>: the full cleaned text, exactly as it would be sent. Read it. Then choose one of two paths.</p>
+      <ul>
+        <li><strong>Check on this device only.</strong> Nothing is sent anywhere. You get a lighter local check.</li>
+        <li><strong>Send the cleaned text for a deeper check.</strong> Choose this option, tick the box confirming you read the text, press <strong>Approve this exact text</strong>, then <strong>Run the deeper check</strong>.</li>
+      </ul>
+      <p>Your approval is tied to that exact text. If anything changes after you approve, the approval is cancelled and nothing is sent until you approve again. A last automatic scan also blocks the send if any hidden value is still in the text.</p>
+
+      <h3>4. Results</h3>
+      <p>You get a list of things worth asking about, such as a clause that cancels another, a surprise fee or a short deadline. Placeholders are swapped back to your real names and numbers <strong>on your device</strong>, so the results read naturally.</p>
+      <ul>
+        <li><strong>Download privacy report</strong> saves a small JSON file describing what was hidden, what was sent and where the check ran. It contains counts and fingerprints (hashes), not your document text.</li>
+        <li><strong>Check another document</strong> starts over.</li>
+        <li><strong>Clear everything</strong> (top of the page) removes your document, results and any saved data from this device.</li>
+      </ul>
+
+      <h2 id="where">What stays on your device and what goes to the cloud</h2>
+      <div class="guide-table-wrap">
+        <table class="guide-table">
+          <thead>
+            <tr><th scope="col">Stays in your browser</th><th scope="col">Can go to the cloud, only after you approve</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Your original file</td><td>The cleaned text you saw under "What leaves your device"</td></tr>
+            <tr><td>The real names, numbers and amounts</td><td>Labelled placeholders instead of those values</td></tr>
+            <tr><td>The list linking placeholders to real values</td><td>Nothing else</td></tr>
+            <tr><td>The on-device AI check, if your Chrome supports it</td><td></td></tr>
+            <tr><td>Putting real values back into the results</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The deeper check uses Google's Gemini model through Firebase AI Logic, protected by Firebase App Check. If you never approve, nothing is sent.</p>
+
+      <h2 id="status">The status bar at the top</h2>
+      <ul>
+        <li><strong>Private AI on this device</strong> shows whether Chrome's built-in model (Gemma) is ready. If it offers <strong>Set up private AI</strong>, pressing it downloads the model. This is a large download (about 2.3 GB) and only works on recent Chrome with the built-in AI features turned on. <strong>You do not need it.</strong> Without it, ClauseGuard finds sensitive details with built-in rules, and nothing is sent to the cloud instead.</li>
+        <li><strong>Deeper check</strong> says either "cloud connected and protected" (a real Gemini check is available) or "practice mode". Practice mode runs a clearly labelled simulation on your device and sends nothing.</li>
+      </ul>
+      <p>The <strong>Under the hood</strong> section at the bottom of the app is for developers and judges. It shows which model answered (on-device or in the cloud), the approval fingerprint and a 16-field privacy report.</p>
+
+      <h2 id="limits">Limits</h2>
+      <ul>
+        <li><strong>Not legal, medical or financial advice.</strong> ClauseGuard points out things worth asking about. It can miss things.</li>
+        <li><strong>Detection is not perfect.</strong> On our own made-up test set it found about 87% of sensitive items. Anything it misses and you do not add yourself will be sent if you approve. Read the cleaned text before you approve it.</li>
+        <li><strong>Indirect references can survive.</strong> A phrase like "the landlord's CEO" is not a name, so it is not hidden.</li>
+        <li><strong>Digital documents only.</strong> Scanned PDFs are not read. Files are limited to 25 MB and PDFs to 50 pages.</li>
+        <li><strong>On-device AI depends on your machine.</strong> It has been tested on one Linux laptop with Chrome 156 and 158. Elsewhere Chrome may report it unavailable, and ClauseGuard keeps working with its built-in rules.</li>
+        <li><strong>Built for Chrome on desktop.</strong> Other browsers and phones are untested.</li>
+        <li><strong>Unsure? Use a sample.</strong> The samples show the full flow without any of your own data.</li>
+      </ul>
+
+      <h2>Optional: the encrypted vault</h2>
+      <p>Under the hood there is an optional vault that saves the list of hidden items (not the document) in your browser, encrypted with a passphrase you choose. It has not had an external security review, so treat it as experimental.</p>
+
+      <div class="step-actions">
+        <a class="btn btn-primary" href="./index.html">Open ClauseGuard</a>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <p>Your document is read in this browser tab. Cloud checks only ever see text you approved, with names and numbers replaced.</p>
+  </footer>
+</body>
+</html>
