@@ -122,10 +122,31 @@ function describeDeviceAiBase(
   }
 }
 
-export function describeCloud(t: ObservedFirebaseTelemetry): { tone: Tone; headline: string } {
-  return t.hasLiveCloudConfig
-    ? { tone: "ok", headline: "Deeper check: cloud connected and protected" }
-    : { tone: "neutral", headline: "Deeper check: cloud not set up, so it runs on this device and nothing is sent" };
+export function describeCloud(
+  t: ObservedFirebaseTelemetry,
+  refused = false
+): { tone: Tone; headline: string; chip: string } {
+  if (!t.hasLiveCloudConfig) {
+    return {
+      tone: "neutral",
+      headline: "Deeper check: cloud not set up, so it runs on this device and nothing is sent",
+      chip: "Cloud: not set up",
+    };
+  }
+  if (refused) {
+    return {
+      tone: "warn",
+      headline: "Deeper check: the cloud could not confirm this app is genuine, so nothing was sent",
+      chip: "Cloud: blocked",
+    };
+  }
+  return { tone: "ok", headline: "Deeper check: cloud connected and protected", chip: "Cloud: protected" };
+}
+
+/** True when the cloud refused the app's App Check attestation (nothing was sent). */
+export function isCloudVerificationError(err: unknown): boolean {
+  const raw = err instanceof Error ? `${err.name} ${err.message}` : String(err ?? "");
+  return /ERR_APP_CHECK|attestation/i.test(raw);
 }
 
 export function describeApproval(state: ApprovalState): string {

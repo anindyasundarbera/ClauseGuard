@@ -52,3 +52,18 @@ describe("surfaced view model", () => {
     expect(roleTag("DISCLOSING_PARTY")).toBe("Disclosing party");
   });
 });
+
+describe("cloud status after an App Check refusal", () => {
+  it("stops saying protected once the cloud refused the app", async () => {
+    const { describeCloud, isCloudVerificationError } = await import("../../src/ui/viewModel.ts");
+    const t = { hasLiveCloudConfig: true } as Parameters<typeof describeCloud>[0];
+    expect(describeCloud(t).chip).toBe("Cloud: protected");
+    const refused = describeCloud(t, true);
+    expect(refused.chip).toBe("Cloud: blocked");
+    expect(refused.tone).toBe("warn");
+    expect(refused.headline).toContain("nothing was sent");
+    expect(describeCloud({ hasLiveCloudConfig: false } as typeof t, true).chip).toBe("Cloud: not set up");
+    expect(isCloudVerificationError(new Error("[ERR_APP_CHECK_ATTESTATION_FAILED] token rejected"))).toBe(true);
+    expect(isCloudVerificationError(new Error("network down"))).toBe(false);
+  });
+});

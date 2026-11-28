@@ -16,6 +16,7 @@ import {
   reviewHeading,
   cleanFindingTitle,
   describeCloud,
+  isCloudVerificationError,
   describeDeviceAi,
   approvalId,
   downloadAnnouncement,
@@ -157,6 +158,9 @@ function goTo(step: StepNumber, focus = true): void {
 }
 
 /** Run an async action with a visible loading state and a plain-language error state. */
+/** Set when the cloud refused this app's App Check attestation; cleared by a later successful cloud check. */
+let cloudRefused = false;
+
 async function run(label: string, fn: () => Promise<void>): Promise<boolean> {
   busyText = label;
   errorText = null;
@@ -197,10 +201,10 @@ function renderStatusBar(): void {
   el("device-ai-chip-fill").style.width = `${pct ?? 0}%`;
   renderAiBanner(ai);
   announceDownload(pct);
-  const cloud = describeCloud(telemetry);
+  const cloud = describeCloud(telemetry, cloudRefused);
   el("cloud-dot").className = `dot dot-${cloud.tone}`;
   el("cloud-headline").textContent = cloud.headline;
-  el("cloud-chip").textContent = telemetry.hasLiveCloudConfig ? "Cloud: protected" : "Cloud: not set up";
+  el("cloud-chip").textContent = cloud.chip;
 
   // One combined chip and its sheet (phones and narrow windows).
   el("status-dot").className = `dot dot-${ai.tone}`;
@@ -973,10 +977,17 @@ async function initUi(): Promise<void> {
   });
   el("btn-analyze-cloud").addEventListener("click", async () => {
     const ok = await run("Running the deeper check on the approved text…", async () => {
-      await controller.runApprovedCloudAnalysis({
-        allowSimulatedCloud: el<HTMLInputElement>("chk-sim-cloud").checked,
-        modelId: controller.selectedCloudModel,
-      });
+      try {
+        await controller.runApprovedCloudAnalysis({
+          allowSimulatedCloud: el<HTMLInputElement>("chk-sim-cloud").checked,
+          modelId: controller.selectedCloudModel,
+        });
+        cloudRefused = false;
+      } catch (err) {
+        // Keep the status chip honest: after an App Check refusal the cloud is not "protected and ready".
+        if (isCloudVerificationError(err)) cloudRefused = true;
+        throw err;
+      }
     });
     if (ok) goTo(4);
   });
