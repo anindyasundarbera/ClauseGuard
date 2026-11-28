@@ -30,7 +30,9 @@ export type EntityCategory =
   | "EIN"
   | "API_KEY"
   | "CURRENCY_CAP"
-  | "ADDRESS";
+  | "ADDRESS"
+  | "ID_NUMBER"
+  | "DATE_OF_BIRTH";
 
 export type ContractRole =
   | "CLIENT"
@@ -162,6 +164,8 @@ export interface DetectedEntity {
   rationale: string;
   reviewStatus: ReviewStatus;
   needsDecisionReason?: string;
+  /** The label printed next to the value in the document ("Patient Name", "UHID"), if any. */
+  fieldLabel?: string;
 }
 
 export interface CanonicalEntity {
@@ -169,7 +173,7 @@ export interface CanonicalEntity {
   canonicalName: string;
   category: Exclude<
     EntityCategory,
-    "IBAN" | "CREDIT_CARD" | "SSN" | "EIN" | "API_KEY" | "CURRENCY_CAP" | "EMAIL" | "PHONE" | "ADDRESS"
+    "IBAN" | "CREDIT_CARD" | "SSN" | "EIN" | "API_KEY" | "CURRENCY_CAP" | "EMAIL" | "PHONE" | "ADDRESS" | "ID_NUMBER" | "DATE_OF_BIRTH"
   >;
   aliases: string[];
   trustState: "HUMAN_APPROVED" | "DETERMINISTIC_SEED";

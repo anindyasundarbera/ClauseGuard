@@ -9,8 +9,10 @@ import type {
 } from "../core/types.ts";
 import { buildSamples } from "./samples.ts";
 import {
-  capitalize,
-  categoryLabel,
+  detectionNote,
+  groupForReview,
+  reviewCounts,
+  reviewHeading,
   cleanFindingTitle,
   describeCloud,
   describeDeviceAi,
@@ -140,9 +142,11 @@ function renderSamples(): void {
   }
 }
 
-function entityRow(ent: DetectedEntity): HTMLElement {
+function entityRow(group: DetectedEntity[]): HTMLElement {
+  const ent = group[0];
+  const ids = group.map((g) => g.id);
   const card = document.createElement("div");
-  const pending = ent.reviewStatus === "PENDING_REVIEW" || ent.reviewStatus === "NEEDS_DECISION";
+  const pending = group.some((g) => g.reviewStatus === "PENDING_REVIEW" || g.reviewStatus === "NEEDS_DECISION");
   card.className = `entity-card${pending ? " is-pending" : ""}`;
   card.setAttribute("data-entity-id", ent.id);
 
@@ -153,7 +157,9 @@ function entityRow(ent: DetectedEntity): HTMLElement {
   surface.textContent = ent.surface;
   const meta = document.createElement("div");
   meta.className = "entity-meta";
-  const how = ent.source === "HUMAN_ADDED" ? "added by you" : `${Math.round(ent.confidence * 100)}% sure`;
+  const parts = [detectionNote(group)];
+  if (group.length > 1) parts.push(`appears ${group.length} times`);
+  const how = parts.join(" · ");
   meta.textContent = pending
     ? `Needs your decision · ${how}`
     : ent.reviewStatus === "ACCEPTED"
@@ -169,11 +175,11 @@ function entityRow(ent: DetectedEntity): HTMLElement {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
-    b.setAttribute("aria-pressed", String(ent.reviewStatus === status));
+    b.setAttribute("aria-pressed", String(!pending && group.every((g) => g.reviewStatus === status)));
     b.setAttribute("data-testid", `${testPrefix}-${ent.id}`);
     b.onclick = async () => {
       resetConsent();
-      await run("Updating…", () => controller.toggleEntityStatus(ent.id, status));
+      await run("Updating…", () => controller.toggleEntityStatus(ids, status));
     };
     return b;
   };
@@ -222,29 +228,27 @@ function renderReview(): void {
     c.textContent = text;
     chips.appendChild(c);
   };
+  const rc = reviewCounts(ents);
+  if (controller.document && controller.documentProfile.kind !== "GENERAL") {
+    chip(`Looks like a ${controller.documentProfile.label}`, "chip-kind");
+  }
   if (ents.length > 0) {
-    chip(`${ents.length} found`, "");
-    if (counts.pendingTotal > 0) chip(`${counts.pendingTotal} need your decision`, "chip-warn");
-    if (counts.hiddenTotal > 0) chip(`${counts.hiddenTotal} hidden`, "chip-ok");
-    if (counts.visibleTotal > 0) chip(`${counts.visibleTotal} kept visible`, "chip-err");
+    chip(`${rc.found} found`, "");
+    if (rc.pending > 0) chip(`${rc.pending} need your decision`, "chip-warn");
+    if (rc.hidden > 0) chip(`${rc.hidden} hidden`, "chip-ok");
+    if (rc.visible > 0) chip(`${rc.visible} kept visible`, "chip-err");
   }
 
   const list = el("airlock-list");
   list.replaceChildren();
-  const groups = new Map<string, DetectedEntity[]>();
-  for (const e of ents) {
-    const g = groups.get(e.category) ?? [];
-    g.push(e);
-    groups.set(e.category, g);
-  }
-  for (const [cat, items] of groups) {
+  for (const [cat, rows] of groupForReview(ents)) {
     const section = document.createElement("section");
     const h = document.createElement("h3");
     h.className = "group-title";
-    h.textContent = capitalize(categoryLabel(items[0].category, 2)) + ` (${items.length})`;
+    h.textContent = reviewHeading(cat, 2, controller.documentProfile.headings) + ` (${rows.length})`;
     h.setAttribute("data-category", cat);
     section.appendChild(h);
-    for (const e of items) section.appendChild(entityRow(e));
+    for (const row of rows) section.appendChild(entityRow(row));
     list.appendChild(section);
   }
 
@@ -253,7 +257,7 @@ function renderReview(): void {
   const cont = el<HTMLButtonElement>("btn-review-continue");
   acceptAll.hidden = counts.pendingTotal === 0;
   acceptAll.disabled = counts.pendingTotal === 0 || busyText !== null;
-  acceptAll.textContent = `Hide all ${counts.pendingTotal} suggested item${counts.pendingTotal === 1 ? "" : "s"}`;
+  acceptAll.textContent = `Hide all ${rc.pending} suggested item${rc.pending === 1 ? "" : "s"}`;
   cont.hidden = counts.pendingTotal > 0;
   cont.disabled = !hasDoc || busyText !== null;
 }

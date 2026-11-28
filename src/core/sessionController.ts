@@ -1,3 +1,10 @@
+import {
+  classifyDocument,
+  DOCUMENT_PROFILES,
+  expandFieldOccurrences,
+  runFieldDetectors,
+  type DocumentProfile,
+} from "./detection/documentProfiles.ts";
 import { runDeterministicDetectors } from "./detection/deterministicDetectors.ts";
 import { PrivacyBoundaryError } from "./errors.ts";
 import {
@@ -108,6 +115,9 @@ export class ClauseGuardSessionController {
   public document: NormalizedDocument | null = null;
   public rawDocumentSha256 = "NONE";
   public entities: DetectedEntity[] = [];
+  /** What kind of document this looks like; set on each scan. */
+  public documentProfile: DocumentProfile = DOCUMENT_PROFILES.GENERAL;
+  public documentCues: string[] = [];
   public bindings: DocumentEntityBinding[] = [];
   public redaction: RedactionResult | null = null;
   public mapVersion = 1;
@@ -277,7 +287,15 @@ export class ClauseGuardSessionController {
     if (!this.document) return;
     const norm = this.document.normalizedText;
 
-    // 1. Deterministic Layer-1 scrubbers
+    // 0. What kind of document is this? Decides headings and what the on-device AI may suggest.
+    const classification = classifyDocument(norm);
+    this.documentProfile = classification.profile;
+    this.documentCues = classification.cues;
+
+    // 1. Deterministic Layer-1 scrubbers, plus values printed next to known labels
+    //    ("Patient Name :", "UHID :", "DOB :") and every other place those values appear.
+    const fieldHits = runFieldDetectors(norm);
+    const fields = [...fieldHits, ...expandFieldOccurrences(norm, fieldHits)];
     const l1 = runDeterministicDetectors(norm, { allowSyntheticCanarySsn: true });
 
     // 2. ARCH-RET-4.1 Workspace & Preamble Entity Graph
@@ -297,6 +315,7 @@ export class ClauseGuardSessionController {
     for (const chunk of chunks) {
       const res = await runChunkOnDeviceNano(chunk, "ONLY_ON_DEVICE", {
         firebaseConfig: this.firebaseConfig,
+        profile: this.documentProfile,
       });
       if (res.inferenceSource === "FIREBASE_AI_LOGIC_ON_DEVICE") {
         usedLiveNano = true;
@@ -334,7 +353,13 @@ export class ClauseGuardSessionController {
       : "DEGRADED_DETERMINISTIC_SAFE (DETERMINISTIC_L1 + ARCH-RET-4.1; Firebase ONLY_ON_DEVICE weights unavailable)";
 
     // Merge candidates while deduplicating identical intervals
-    const combined: DetectedEntity[] = [...l1, ...graphOut.entities];
+    // Label-anchored field values win over pattern and graph guesses on the same span.
+    const overlapsAny = (e: DetectedEntity, list: DetectedEntity[]): boolean =>
+      list.some((x) => !(e.normEnd <= x.normStart || e.normStart >= x.normEnd));
+    const combined: DetectedEntity[] = [...fields];
+    for (const e of [...l1, ...graphOut.entities]) {
+      if (!overlapsAny(e, fields)) combined.push(e);
+    }
     for (const ne of nanoEntities) {
       const overlaps = combined.some(
         (existing) => !(ne.normEnd <= existing.normStart || ne.normStart >= existing.normEnd)
@@ -366,11 +391,12 @@ export class ClauseGuardSessionController {
     await this.rebuildRedactionPreview();
   }
 
-  public async toggleEntityStatus(entityId: string, status: "ACCEPTED" | "REJECTED"): Promise<void> {
+  public async toggleEntityStatus(entityId: string | string[], status: "ACCEPTED" | "REJECTED"): Promise<void> {
     this.abortInFlightCloudAnalysis();
     this.approvalMachine.invalidateOnEdit();
+    const ids = new Set(Array.isArray(entityId) ? entityId : [entityId]);
     for (const ent of this.entities) {
-      if (ent.id === entityId) {
+      if (ids.has(ent.id)) {
         ent.reviewStatus = status;
       }
     }

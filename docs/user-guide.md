@@ -35,6 +35,8 @@ The file is read in your browser tab. Nothing is uploaded when you import it.
 
 ClauseGuard lists the names, contact details, account numbers and amounts it found. For each one, choose whether to hide it.
 
+ClauseGuard first works out what kind of document it is (a contract, a medical report, a bill or a bank statement) and says so at the top of the list, for example "Looks like a medical report". The headings follow from that, such as "Patients, doctors and relatives" or "Patient and record numbers". Values printed next to a form label, such as "Patient Name :", "UHID :", "DOB :" or "Mobile No :", are found and hidden automatically, and the row tells you which label it was next to. An item that appears several times is listed once.
+
 - **Hide all suggested items** accepts the whole list in one click.
 - Automatic detection is good at numbers and emails but **can miss people's names**. Read the list, and if something is missing, type it under **Hide something we missed**, pick what it is (person, company, address and so on) and press **Hide it everywhere**. It is hidden in every place it appears.
 - Press **Continue to approval** when you are happy.
