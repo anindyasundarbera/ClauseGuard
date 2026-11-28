@@ -6,6 +6,8 @@ ClauseGuard helps you check a lease, a medical bill or a contract for risky clau
 
 No account or sign-in is needed. Use Chrome on a desktop or laptop.
 
+The same guide is built into the app: press **User guide** at the top of the page (it opens in a new tab, so your current document is not lost), or go to https://clauseguard-hybrid-1c5e2.web.app/guide.html. The in-app page is `guide.html` at the repo root; keep it in step with this file.
+
 ---
 
 ## The short version

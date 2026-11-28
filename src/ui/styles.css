@@ -315,3 +315,28 @@ textarea { font-family: var(--mono); font-size: 0.85rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Header actions and the user guide page (guide.html) */
+.header-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+a.btn { text-decoration: none; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.site-footer a, .guide a:not(.btn) { color: var(--accent); }
+.guide h1 { font: 700 1.9rem/1.2 var(--serif); margin-bottom: 0.75rem; }
+.guide h2 { margin: 2rem 0 0.6rem; scroll-margin-top: 1rem; }
+.guide h3 { font: 700 1.15rem/1.3 var(--sans); margin: 1.4rem 0 0.4rem; }
+.guide p { margin: 0 0 0.75rem; }
+.guide .lead { font-size: 1.08rem; }
+.guide ul, .guide ol { margin: 0 0 0.9rem; padding-left: 1.4rem; }
+.guide li { margin: 0.3rem 0; }
+.guide-toc { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; margin: 1rem 0 0.5rem; padding: 0.7rem 0.9rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; font-size: 0.95rem; }
+.guide-table-wrap { overflow-x: auto; margin: 0 0 0.9rem; }
+.guide-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.guide-table th, .guide-table td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border: 1px solid var(--line); }
+.guide-table th { background: var(--surface-2); }
+@media (max-width: 520px) {
+  .header-actions { width: 100%; }
+  .header-actions .btn { flex: 1; }
+}
