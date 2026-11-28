@@ -112,6 +112,7 @@ const CATEGORY_LABELS: Record<EntityCategory, [string, string]> = {
   API_KEY: ["secret key", "secret keys"],
   CURRENCY_CAP: ["money amount", "money amounts"],
   ADDRESS: ["street address", "street addresses"],
+  ID_NUMBER: ["ID or reference number", "ID or reference numbers"],
 };
 
 export function categoryLabel(cat: EntityCategory, count = 1): string {
@@ -253,4 +254,61 @@ export function plainWarnings(warnings: string[]): string[] {
     out.push(w);
   }
   return Array.from(new Set(out));
+}
+
+/**
+ * Review rows: one row per category + exact text (case-insensitive), so a name or number that
+ * appears five times is one decision, not five. Groups keep document order of first appearance.
+ */
+export function groupForReview(entities: DetectedEntity[]): Map<EntityCategory, DetectedEntity[][]> {
+  const byCat = new Map<EntityCategory, Map<string, DetectedEntity[]>>();
+  for (const e of entities) {
+    const rows = byCat.get(e.category) ?? new Map<string, DetectedEntity[]>();
+    const key = e.surface.trim().toLowerCase().replace(/\s+/g, " ");
+    const row = rows.get(key) ?? [];
+    row.push(e);
+    rows.set(key, row);
+    byCat.set(e.category, rows);
+  }
+  const out = new Map<EntityCategory, DetectedEntity[][]>();
+  for (const [cat, rows] of byCat) out.set(cat, [...rows.values()]);
+  return out;
+}
+
+function isPending(e: DetectedEntity): boolean {
+  return e.reviewStatus === "PENDING_REVIEW" || e.reviewStatus === "NEEDS_DECISION";
+}
+
+/** Counts over review rows (unique items), matching what the Review list shows. */
+export function reviewCounts(entities: DetectedEntity[]): {
+  found: number;
+  pending: number;
+  hidden: number;
+  visible: number;
+} {
+  let found = 0;
+  let pending = 0;
+  let hidden = 0;
+  let visible = 0;
+  for (const rows of groupForReview(entities).values()) {
+    for (const row of rows) {
+      found++;
+      if (row.some(isPending)) pending++;
+      else if (row.every((e) => e.reviewStatus === "ACCEPTED")) hidden++;
+      else visible++;
+    }
+  }
+  return { found, pending, hidden, visible };
+}
+
+/**
+ * How an item was found, for the review row. The on-device model's self-reported confidence is
+ * not calibrated (it often reports 0 for real names), so its suggestions are labelled as such
+ * instead of showing a percentage.
+ */
+export function detectionNote(row: DetectedEntity[]): string {
+  if (row.some((e) => e.source === "HUMAN_ADDED")) return "added by you";
+  const best = row.reduce((a, b) => (b.confidence > a.confidence ? b : a));
+  if (row.every((e) => e.source === "NANO_ON_DEVICE")) return "suggested by on-device AI";
+  return `${Math.round(best.confidence * 100)}% sure`;
 }

@@ -163,9 +163,11 @@ export function runDeterministicDetectors(
   }
 
   // 7b. Street / postal addresses (linear-time pattern for European/US corporate addresses)
-  const addrRe = /\b[A-Z][A-Za-z0-9.\-]{2,32}(?:strasse|straße|Street|St\.|Avenue|Ave\.|Boulevard|Blvd\.|Road|Rd\.|Way|Drive|Dr\.)\s+\d{1,5}(?:,\s*\d{4,6}\s+[A-Z][A-Za-z.\- ]{2,28}(?:,\s*[A-Z][A-Za-z.\- ]{2,24})?)?/g;
+  const addrRe = /\b[A-Z][A-Za-z0-9.\-]{2,32}(?:strasse|straße|Street|St\.|Avenue|Ave\.|Boulevard|Blvd\.|Road|Rd\.|Way|Drive|Dr\.)\s+\d{1,5}(?:,[ \t]*\d{4,6}[ \t]+[A-Z][A-Za-z\-]{1,28}(?:[ \t][A-Z][A-Za-z\-]{1,20}){0,2}(?:,[ \t]*[A-Z][A-Za-z\-]{1,24}(?:[ \t][A-Z][A-Za-z\-]{1,20}){0,2})?)?/g;
   for (const m of normalizedText.matchAll(addrRe)) {
     const s = m.index ?? 0;
+    // City and country parts are capitalised words only, so a match stops at the end of the
+    // sentence instead of running on into the next words ("Germany. Tenant contact").
     results.push(makeEntity(seq++, m[0], "ADDRESS", s, s + m[0].length, "Corporate street/postal address pattern", 0.91));
   }
 
@@ -193,6 +195,28 @@ export function runDeterministicDetectors(
       const s = m.index ?? 0;
       results.push(makeEntity(seq++, m[0], "CODENAME", s, s + m[0].length, "Proprietary project/operation codename", 0.95));
     }
+  }
+
+  // 10. Long reference numbers (patient, registration, policy, account or bill numbers).
+  // Label-anchored ones ("UHID: 1764...", "MRN 0042-77") are hidden by default; a bare run of
+  // 10-20 digits is suggested for review. Spans already claimed above (cards, phones, IBANs) are skipped.
+  const taken = (a: number, b: number): boolean => results.some((r) => !(b <= r.normStart || a >= r.normEnd));
+  const idLabelRe =
+    /\b(?:UHID|MRN|CR\s?No|IP\s?No|OP\s?No|Reg(?:istration)?\.?\s?(?:No|Number)|Patient\s?(?:ID|No)|Policy\s?(?:No|Number)|Account\s?(?:No|Number)|A\/c\s?No|Bill\s?(?:No|Number)|Invoice\s?(?:No|Number)|Member\s?ID|Customer\s?ID|Aadhaar(?:\s?No)?|PAN(?:\s?No)?)\.?[ \t]*[:#-]?[ \t]*([A-Z0-9][A-Z0-9\/-]{4,24}[0-9])\b/gi;
+  for (const m of normalizedText.matchAll(idLabelRe)) {
+    const val = m[1];
+    if (!/\d{3,}/.test(val)) continue;
+    const start = (m.index ?? 0) + m[0].lastIndexOf(val);
+    if (taken(start, start + val.length)) continue;
+    results.push(makeEntity(seq++, val, "ID_NUMBER", start, start + val.length, "Label-anchored reference number", 0.95));
+  }
+  const longDigitsRe = /(?<![\d.,\/-])\d{10,20}(?![\d.,\/-]?\d)/g;
+  for (const m of normalizedText.matchAll(longDigitsRe)) {
+    const start = m.index ?? 0;
+    if (taken(start, start + m[0].length)) continue;
+    const ent = makeEntity(seq++, m[0], "ID_NUMBER", start, start + m[0].length, "Long number that looks like a reference ID", 0.8);
+    ent.reviewStatus = "PENDING_REVIEW";
+    results.push(ent);
   }
 
   return results;

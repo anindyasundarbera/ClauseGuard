@@ -1,4 +1,5 @@
 import { LEGAL_OPERATOR_SHIELD } from "../detection/deterministicDetectors.ts";
+import { trimNameTail } from "../detection/candidateFilters.ts";
 import type {
   CanonicalEntity,
   ContractRole,
@@ -346,7 +347,10 @@ export function resolveEntitiesWithGraph(
   const suffixGuard = "(?!GmbH\\b|LLC\\b|Inc\\b|Corp\\b|Ltd\\b|LP\\b|LLP\\b|Bank\\b)";
   const orgReStr = `\\b${suffixGuard}[A-Z][A-Za-z0-9&'\\-]+(?:\\s+(?:of|and|&|${suffixGuard}[A-Z][A-Za-z0-9&'\\-]+)){0,5},?\\s+(?:GmbH|LLC|Inc\\.?|Corp\\.?|Ltd\\.?|LP|LLP)\\.?`;
   const bankReStr = `\\b(?:[A-Z][A-Za-z0-9&'\\-]+\\s+){0,4}Bank(?:\\s+(?:of|and)\\s+[A-Z][A-Za-z0-9&'\\-]+(?:\\s+[A-Z][A-Za-z0-9&'\\-]+){0,2})?\\b`;
-  const personReStr = `\\b(?:Dr\\.|Mr\\.|Ms\\.|Mrs\\.|Prof\\.)\\s+[A-Z][A-Za-z'\\-]+(?:\\s+(?:[A-Z]\\.|[A-Z][A-Za-z'\\-]+)){1,3}\\b`;
+  // Honorific + 1-4 capitalised words on the same line ("Dr. Jiban Basak", "Mr Arun Kumar Bera").
+  // Words are joined by spaces or tabs only, so a name never runs onto the next line; trailing
+  // form labels ("Gender", "Age") are trimmed below.
+  const personReStr = `\\b(?:Dr|Mr|Ms|Mrs|Prof|Shri|Smt)\\.?[ \\t]+[A-Z][A-Za-z'\\-]+(?:[ \\t]+(?:[A-Z]\\.|[A-Z][A-Za-z'\\-]+)){0,3}\\b`;
   const phraseRe = new RegExp(`${personReStr}|${orgReStr}|${bankReStr}`, "g");
 
   for (const m of normText.matchAll(phraseRe)) {
@@ -355,7 +359,11 @@ export function resolveEntitiesWithGraph(
       raw = raw.slice(0, -1);
     }
     const start = (m.index ?? 0) + m[0].indexOf(raw);
-    const end = start + raw.length;
+    let end = start + raw.length;
+    if (/^(?:Dr|Mr|Ms|Mrs|Prof|Shri|Smt)\.?[ \t]/.test(raw)) {
+      end = trimNameTail(normText, start, end);
+      raw = normText.slice(start, end);
+    }
     if (overlaps(start, end)) continue;
     if (rejectionAllowlist.has(raw.toLowerCase())) continue;
     if (LEGAL_OPERATOR_SHIELD.has(raw.toLowerCase())) continue;
@@ -367,7 +375,7 @@ export function resolveEntitiesWithGraph(
       continue;
     }
 
-    const isTitlePerson = /^(?:Dr\.|Mr\.|Ms\.|Mrs\.|Prof\.)\s+/.test(raw);
+    const isTitlePerson = /^(?:Dr|Mr|Ms|Mrs|Prof|Shri|Smt)\.?[ \t]+\S/.test(raw);
     const isLegalOrg = !isTitlePerson && /\b(?:GmbH|LLC|Inc\.?|Corp\.?|Ltd\.?|LP|LLP)\.?$/.test(raw);
     const isBank = !isTitlePerson && /\bBank\b/.test(raw);
     if (!isLegalOrg && !isBank && !isTitlePerson) {
@@ -439,7 +447,8 @@ export function commitHumanApprovedToWorkspace(
       ent.category === "CURRENCY_CAP" ||
       ent.category === "EMAIL" ||
       ent.category === "PHONE" ||
-      ent.category === "ADDRESS"
+      ent.category === "ADDRESS" ||
+      ent.category === "ID_NUMBER"
     ) {
       continue; // UDR-007: Never persist credentials, financial values, or contact PII in workspace glossary
     }

@@ -366,11 +366,12 @@ export class ClauseGuardSessionController {
     await this.rebuildRedactionPreview();
   }
 
-  public async toggleEntityStatus(entityId: string, status: "ACCEPTED" | "REJECTED"): Promise<void> {
+  public async toggleEntityStatus(entityId: string | string[], status: "ACCEPTED" | "REJECTED"): Promise<void> {
     this.abortInFlightCloudAnalysis();
     this.approvalMachine.invalidateOnEdit();
+    const ids = new Set(Array.isArray(entityId) ? entityId : [entityId]);
     for (const ent of this.entities) {
-      if (ent.id === entityId) {
+      if (ids.has(ent.id)) {
         ent.reviewStatus = status;
       }
     }

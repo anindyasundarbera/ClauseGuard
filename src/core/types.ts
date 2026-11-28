@@ -30,7 +30,8 @@ export type EntityCategory =
   | "EIN"
   | "API_KEY"
   | "CURRENCY_CAP"
-  | "ADDRESS";
+  | "ADDRESS"
+  | "ID_NUMBER";
 
 export type ContractRole =
   | "CLIENT"
@@ -169,7 +170,7 @@ export interface CanonicalEntity {
   canonicalName: string;
   category: Exclude<
     EntityCategory,
-    "IBAN" | "CREDIT_CARD" | "SSN" | "EIN" | "API_KEY" | "CURRENCY_CAP" | "EMAIL" | "PHONE" | "ADDRESS"
+    "IBAN" | "CREDIT_CARD" | "SSN" | "EIN" | "API_KEY" | "CURRENCY_CAP" | "EMAIL" | "PHONE" | "ADDRESS" | "ID_NUMBER"
   >;
   aliases: string[];
   trustState: "HUMAN_APPROVED" | "DETERMINISTIC_SEED";
