@@ -6,6 +6,7 @@ Built for **#BuildHybridAI 2026** (Web / Chrome track) with **Firebase AI Logic 
 
 - Licence: [Apache-2.0](./LICENSE)
 - Hosted demo URL: **https://clauseguard-hybrid-1c5e2.web.app** (Firebase Hosting; deploy steps in [docs/deploy.md](docs/deploy.md))
+- User guide (plain language, for judges and end users): [docs/user-guide.md](docs/user-guide.md)
 - Demo video: `TODO` (script: [docs/demo-script.md](docs/demo-script.md))
 - Devpost text: [docs/devpost-text.md](docs/devpost-text.md)
 
