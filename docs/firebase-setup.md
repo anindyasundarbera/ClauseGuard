@@ -8,7 +8,7 @@ Project: `clauseguard-hybrid-1c5e2`. Everything below is done by you in the Fire
 3. Allowed cloud models (enforced client-side): `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-4-hydrogen`.
 
 ## 2. Register the web app config
-Project settings → *Your apps* → the Web app → copy the config into `.env.local` (git-ignored) if you want to override the built-in public defaults. These identifiers are public, not secrets.
+Project settings → *Your apps* → the Web app → copy the config into `.env.local` (git-ignored) (all six `VITE_FIREBASE_*` values are required; there are no built-in defaults, and without them the app runs local-only). These identifiers are public, not secrets.
 
 ## 3. App Check (reCAPTCHA Enterprise)
 1. Console → **Build → App Check → Apps** → select the web app → **reCAPTCHA Enterprise** → create/choose a key.

@@ -14,7 +14,7 @@ ClauseGuard is a static single-page app (Vite build in `dist/`). No server code 
 
 Why Firebase first: one console, one set of allowed domains, no GitHub connection or build minutes, and the App Check/reCAPTCHA key is already set up for it. Use Render only as a fallback/mirror (for example if you want a second URL for judges).
 
-Public build-time variables (all are public identifiers that ship in the JS bundle; none is a secret): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, optional `VITE_FIREBASE_CLOUD_MODEL`, `VITE_FIREBASE_USE_LIMITED_USE_APPCHECK`. The six Firebase ones fall back to built-in defaults for this project when empty, so the **only one you really need on a host is `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`** (without it the hosted app refuses cloud calls and stays local-only, which is the safe default). **Never** set `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` on a hosted build; it is localhost-only and ignored elsewhere.
+Public build-time variables (all are public identifiers that ship in the JS bundle; none is a secret): `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID`, `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY`, optional `VITE_FIREBASE_CLOUD_MODEL`, `VITE_FIREBASE_USE_LIMITED_USE_APPCHECK`. **All six `VITE_FIREBASE_*` web-config values plus `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` are required on a host.** There are no built-in defaults any more (commit `a7704a8` removed them so no project key is committed). If the API key, project ID or app ID is empty, the build runs local-only: App Check shows `LOCAL_ONLY_NO_CLOUD` and no cloud call is made (the other three values are still needed for the Firebase SDK to work correctly). If the Firebase values are set but the site key is missing, App Check shows `NOT_CONFIGURED` and cloud calls are refused. Both are safe failures, but neither is the full demo. Copy the six values from Firebase Console → Project settings → Your apps → web app → *SDK setup and configuration* (Config). **Never** set `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` on a hosted build; it is localhost-only and ignored elsewhere.
 
 ---
 
@@ -26,11 +26,11 @@ You do these steps (they need your Google login):
    ```bash
    npx firebase-tools login
    ```
-2. **Make sure `.env.local` has the site key** (git-ignored; Vite reads it automatically during the build). Check without printing values:
+2. **Make sure `.env.local` has all seven required values** (git-ignored; Vite reads it automatically during the build; start from `cp .env.example .env.local`). Check without printing values:
    ```bash
-   grep -c '^VITE_RECAPTCHA_ENTERPRISE_SITE_KEY=.' .env.local
+   grep -cE '^VITE_(FIREBASE_(API_KEY|AUTH_DOMAIN|PROJECT_ID|STORAGE_BUCKET|MESSAGING_SENDER_ID|APP_ID)|RECAPTCHA_ENTERPRISE_SITE_KEY)=.' .env.local
    ```
-   A `1` means it is set. Do not set `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` in the file you build for production (comment it out), because it would make a localhost-style token path part of the bundle.
+   A `7` means all are set; anything lower means the hosted build will be local-only or refuse cloud calls. Do not set `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` in the file you build for production (comment it out), because it would make a localhost-style token path part of the bundle.
 3. **Build and check**
    ```bash
    npm ci && npm run typecheck && npm test && npm run build
@@ -63,7 +63,7 @@ You do these steps (they need your Google login):
    - publish directory: `dist`
    - rewrite `/*` → `/index.html`, plus the same four security headers
    - Node 22 via `NODE_VERSION`
-3. **Set the env vars in the dashboard** (Service → Environment). `render.yaml` only *names* them (`sync: false`), so Render prompts for each value and nothing secret is stored in Git. Fill at least `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` with the public site key. The other `VITE_FIREBASE_*` values can stay empty (built-in defaults apply) or be copied from Firebase Console → Project settings → Your apps. Do **not** add a debug token. Build-time vars only take effect on the next build, so use *Manual Deploy → Clear build cache & deploy* after changing them.
+3. **Set the env vars in the dashboard** (Service → Environment). `render.yaml` only *names* them (`sync: false`), so Render prompts for each value and nothing secret is stored in Git. Fill all six `VITE_FIREBASE_*` values (Firebase Console → Project settings → Your apps) and `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` with the public site key. There are no built-in defaults: an empty Firebase value makes the mirror local-only. Do **not** add a debug token. Build-time vars only take effect on the next build, so use *Manual Deploy → Clear build cache & deploy* after changing them.
 4. **Allow the Render domain** on the reCAPTCHA Enterprise key (Allowed domains → add `<your-service>.onrender.com` and any custom domain). In Firebase Console → Authentication → Settings → Authorized domains, adding it is harmless but not required because the app does not use Firebase Auth.
 5. **Verify**: open the Render URL, run the same "Under the hood" check as above. Without step 4 above the status will show an attestation failure and cloud calls are refused (the app fails closed; local analysis still works).
 
