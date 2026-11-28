@@ -120,13 +120,16 @@
   </dialog>
 
   <main id="main" class="page" role="main">
-    <div id="warnings-box" data-testid="warnings-box" class="banner banner-warn" role="status" aria-live="polite" hidden></div>
     <!-- One polite region for Review outcomes ("Hidden. 7 left to decide."), never for activity. -->
     <div id="review-announcer" data-testid="review-announcer" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <!-- STEP 1: START -->
     <section id="panel-1" class="panel" data-panel="1" aria-labelledby="h-1">
       <div class="work">
+        <div id="warnings-box" data-testid="warnings-box" class="banner banner-warn" role="status" aria-live="polite" hidden>
+          <div id="warnings-list" class="warn-list"></div>
+          <button id="btn-warnings-close" data-testid="btn-warnings-close" type="button" class="warn-close" aria-label="Close warning"><span aria-hidden="true">&#10005;</span></button>
+        </div>
         <div class="title-row">
           <h1 id="h-1" tabindex="-1">Which document do you want to check?</h1>
           <p class="lede">It stays on this device while you work. Nothing is uploaded.</p>
@@ -546,18 +549,30 @@
       </p>
       <p class="info-text"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people&rsquo;s names. Add any name in the box on this panel.</p>
     </div>
-    <div class="notice notice-info ledger-local" data-info="3" aria-live="off" hidden>
-      <span class="info-tag">Info</span>
-      <p class="info-text"><span class="lock" aria-hidden="true">&#128274;</span> <strong>Stays on this device:</strong> <span id="count-hidden" data-testid="count-hidden">0</span> <span>details hidden</span></p>
-      <ul id="ledger-local-list" class="ledger-list" tabindex="0" aria-label="Hidden details"></ul>
-      <p class="info-text" id="ledger-original-note">Your original document stays in this tab&rsquo;s memory.</p>
-      <p id="ledger-visible-note" class="ledger-visible" hidden></p>
-    </div>
     <div class="notice notice-info" data-info="4" aria-live="off" hidden>
       <span class="info-tag">Info</span>
       <p class="disclaimer info-text">ClauseGuard points out things worth asking about. It is not legal, medical or money advice and can miss things.</p>
     </div>
     <div id="error-box" data-testid="error-box" class="notice notice-error" role="alert" hidden></div>
+  </div>
+
+
+  <!-- Privacy lock: one button at the top-right under the app bar; the card opens over the side panel. -->
+  <div id="privacy-lock" class="privacy-lock" hidden>
+    <button id="btn-privacy-lock" data-testid="btn-privacy-lock" type="button" class="lock-btn" aria-expanded="false" aria-controls="privacy-card" aria-label="Stays on this device: 0 details hidden">
+      <svg class="lock-ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.2 7V5a2.8 2.8 0 0 1 5.6 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span id="lock-count" class="lock-count" aria-hidden="true">0</span>
+    </button>
+    <section id="privacy-card" class="privacy-card ledger-local" data-info="3" role="region" aria-labelledby="privacy-card-title" hidden>
+      <div class="pc-head">
+        <h2 id="privacy-card-title" class="pc-title">Stays on this device</h2>
+        <p class="pc-count"><span id="count-hidden" data-testid="count-hidden">0</span> hidden</p>
+      </div>
+      <ul id="ledger-local-list" class="ledger-list" tabindex="0" aria-label="Hidden details"></ul>
+      <p class="info-text" id="ledger-original-note">Your original document stays in this tab&rsquo;s memory.</p>
+      <p id="ledger-visible-note" class="ledger-visible" hidden></p>
+      <div class="pc-timer" aria-hidden="true"><span id="pc-timer-bar"></span></div>
+    </section>
   </div>
 
   <footer class="site-footer">

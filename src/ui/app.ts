@@ -50,6 +50,7 @@ import {
   STEP_TITLES,
   type StepNumber,
 } from "./viewModel.ts";
+import { CARD_LEAVE_MS, CARD_OPEN_MS, lockLabel, showWarnings, warningKey } from "./lockCard.ts";
 
 const controller = new ClauseGuardSessionController();
 (window as unknown as { __clauseguardController?: ClauseGuardSessionController }).__clauseguardController =
@@ -339,6 +340,10 @@ function placeNoticeBoard(): void {
   const side = panel?.querySelector<HTMLElement>(".side-panel");
   const strip = el("doc-strip");
   if (side && strip.parentElement !== side) side.appendChild(strip);
+  // The warning banner sits at the top of the current step's work area, in normal flow.
+  const work = panel?.querySelector<HTMLElement>(".work");
+  const wb = el("warnings-box");
+  if (work && wb.parentElement !== work) work.prepend(wb);
   // Info notes: only the current step's note shows. They update in place.
   for (const n of b.querySelectorAll<HTMLElement>("[data-info]")) n.hidden = n.dataset.info !== String(currentStep);
 }
@@ -664,18 +669,22 @@ function renderUnderTheHood(): void {
   el("privacy-report-pre").textContent = JSON.stringify(controller.getPrivacyReport16(), null, 2);
 }
 
+let dismissedWarnKey: string | null = null;
+let shownWarnKey: string | null = null;
+
 function renderBanners(): void {
   syncErrorNotice();
   const warn = el("warnings-box");
-  warn.replaceChildren();
+  const list = el("warnings-list");
+  list.replaceChildren();
   let shown = plainWarnings(controller.warnings);
-  // On Review the side panel already carries the built-in-rules warning, so do not say it twice.
+  // The banner at the top of the work area now carries the built-in-rules warning on every screen size.
   // After Review the warning ("double-check the list in Review") no longer helps, so drop it there too.
-  const wide = typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1024px)").matches;
-  if ((wide && currentStep === 2 && fallbackReviewWarning(controller.readinessState)) || currentStep > 2) {
+  if (currentStep > 2) {
     shown = shown.filter((w) => !w.startsWith("Private AI wasn't available for this document"));
   }
-  warn.hidden = shown.length === 0;
+  shownWarnKey = warningKey(shown);
+  warn.hidden = !showWarnings(shown, dismissedWarnKey);
   for (const w of shown) {
     const d = document.createElement("div");
     d.className = "warn-line";
@@ -691,8 +700,116 @@ function renderBanners(): void {
       body.textContent = w;
     }
     d.append(icon, body);
-    warn.appendChild(d);
+    list.appendChild(d);
   }
+}
+
+// ---- Privacy lock card ("Stays on this device") ----
+let lockTimer: number | null = null;
+let lockManual = false;
+
+function lockCardOpen(): boolean {
+  return !el("privacy-card").hidden;
+}
+
+function clearLockTimer(): void {
+  if (lockTimer !== null) window.clearTimeout(lockTimer);
+  lockTimer = null;
+}
+
+function setLockCard(open: boolean, returnFocus = false): void {
+  const card = el("privacy-card");
+  const btn = el("btn-privacy-lock");
+  const was = !card.hidden;
+  card.hidden = !open;
+  btn.setAttribute("aria-expanded", String(open));
+  if (!open) {
+    clearLockTimer();
+    if (returnFocus && was) btn.focus();
+  }
+}
+
+function startLockTimer(ms: number): void {
+  clearLockTimer();
+  const bar = el("pc-timer-bar");
+  const track = bar.parentElement as HTMLElement;
+  track.classList.remove("is-off");
+  bar.style.transition = "none";
+  bar.style.transform = "scaleX(1)";
+  void bar.offsetWidth;
+  bar.style.transition = `transform ${ms}ms linear`;
+  bar.style.transform = "scaleX(0)";
+  lockTimer = window.setTimeout(() => setLockCard(false), ms);
+}
+
+function holdLockTimer(): void {
+  if (lockManual || !lockCardOpen()) return;
+  clearLockTimer();
+  const bar = el("pc-timer-bar");
+  bar.style.transition = "none";
+  bar.style.transform = "scaleX(1)";
+}
+
+function releaseLockTimer(): void {
+  if (lockManual || !lockCardOpen()) return;
+  startLockTimer(CARD_LEAVE_MS);
+}
+
+/** Opens by itself once when a document finishes reading, then folds back after a few seconds. */
+function autoOpenLockCard(): void {
+  if (el("privacy-lock").hidden) return;
+  lockManual = false;
+  setLockCard(true);
+  startLockTimer(CARD_OPEN_MS);
+  // If the pointer or focus is already inside, hold it open.
+  const card = el("privacy-card");
+  if (card.matches(":hover") || card.contains(document.activeElement)) holdLockTimer();
+}
+
+function renderLock(): void {
+  const hasDoc = Boolean(controller.document) && !advancedOpen;
+  const wrap = el("privacy-lock");
+  wrap.hidden = !hasDoc;
+  if (!hasDoc) setLockCard(false);
+  const n = ledgerCounts(controller.entities).hiddenTotal;
+  el("lock-count").textContent = String(n);
+  el("btn-privacy-lock").setAttribute("aria-label", lockLabel(n));
+}
+
+function wireLockCard(): void {
+  const wrap = el("privacy-lock");
+  const btn = el("btn-privacy-lock");
+  const card = el("privacy-card");
+  btn.addEventListener("click", () => {
+    if (lockCardOpen()) {
+      setLockCard(false);
+    } else {
+      lockManual = true;
+      el("pc-timer-bar").parentElement?.classList.add("is-off");
+      setLockCard(true);
+    }
+  });
+  card.addEventListener("mouseenter", holdLockTimer);
+  card.addEventListener("focusin", holdLockTimer);
+  card.addEventListener("mouseleave", () => {
+    if (!card.contains(document.activeElement)) releaseLockTimer();
+  });
+  card.addEventListener("focusout", (ev) => {
+    if (!card.contains(ev.relatedTarget as Node | null) && !card.matches(":hover")) releaseLockTimer();
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && lockCardOpen() && !ev.defaultPrevented) {
+      ev.preventDefault();
+      setLockCard(false, true);
+    }
+  });
+  document.addEventListener("click", (ev) => {
+    if (lockCardOpen() && !wrap.contains(ev.target as Node)) setLockCard(false);
+  });
+  el("btn-warnings-close").addEventListener("click", () => {
+    dismissedWarnKey = shownWarnKey;
+    el("warnings-box").hidden = true;
+  });
 }
 
 function renderSamples(): void {
@@ -838,7 +955,8 @@ function renderReview(): void {
   renderShield(rc);
 
   const warnText = controller.document ? fallbackReviewWarning(controller.readinessState) : null;
-  el("review-fallback-warn").hidden = !warnText;
+  // The same words show in the warning banner above the list, so the side copy stays hidden.
+  el("review-fallback-warn").hidden = true;
   const fbText = el("review-fallback-text");
   if (warnText) {
     const lead = document.createElement("strong");
@@ -1140,6 +1258,7 @@ function renderAll(): void {
   renderSamples();
   renderReview();
   renderApprove();
+  renderLock();
   renderResults();
   renderDocView();
   renderUnderTheHood();
@@ -1169,8 +1288,10 @@ async function importDocument(
     },
   });
   readingFile = false;
-  if (ok) goTo(2);
-  else renderAll();
+  if (ok) {
+    goTo(2);
+    autoOpenLockCard();
+  } else renderAll();
 }
 
 /**
@@ -1990,6 +2111,7 @@ async function initUi(): Promise<void> {
     statusSheet.close();
     el("btn-init-nano").click();
   });
+  wireLockCard();
   const closeAppMenu = wireDisclosure(el("btn-app-menu"), el("app-menu"), { focusFirst: true });
   for (const item of el("app-menu").querySelectorAll<HTMLElement>("a.menu-item")) {
     item.addEventListener("click", () => closeAppMenu());
