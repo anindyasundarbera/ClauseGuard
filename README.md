@@ -10,6 +10,19 @@ Built for **#BuildHybridAI 2026** (Web / Chrome track) with **Firebase AI Logic 
 - Demo video: `TODO` (script: [docs/demo-script.md](docs/demo-script.md))
 - Devpost text: [docs/devpost-text.md](docs/devpost-text.md)
 
+## For judges (3 minutes)
+
+Start here: **https://clauseguard-hybrid-1c5e2.web.app/#walk** (desktop Chrome, no login). Follow the hints and watch the "Left this device" note in the side panel.
+
+| Criterion | Where to look |
+|---|---|
+| Technological Implementation | [`firebaseClient.ts`](src/core/firebase/firebaseClient.ts), [`nanoAdapter.ts`](src/core/orchestration/nanoAdapter.ts), [`approvalMachine.ts`](src/core/inference/approvalMachine.ts), [live cloud run](evidence/live-cloud-gemini-run.json), [`egress.ts`](src/ui/egress.ts) |
+| Design | The four-step flow and sample walk (link above), [`guide.html`](guide.html), [`reportPdf.ts`](src/ui/reportPdf.ts) |
+| Potential Impact | Tenants, patients and small businesses; five made-up [samples](src/ui/samples.ts). No real users yet |
+| Quality of the Idea | You approve the exact bytes that leave, bound by SHA-256; names are restored locally ([`approvalMachine.ts`](src/core/inference/approvalMachine.ts)) |
+
+Read [section 9 (Limitations)](#9-limitations-read-these) before judging the evidence. Full criteria write-up: [docs/devpost-text.md](docs/devpost-text.md).
+
 ---
 
 ## 1. Problem and audience

@@ -1134,3 +1134,20 @@ html.no-actionbar body { padding-bottom: env(safe-area-inset-bottom, 0px); }
   .privacy-card { position: fixed; left: 8px; right: 8px; width: auto; max-width: none; top: calc(var(--appbar-live, var(--appbar-h)) + 10px + 48px + 6px); }
   .panel .work { padding-top: 58px; }
 }
+
+/* "Left this device" note: the one info note that shows on every step. */
+.notice-info.notice-egress { border-style: solid; border-color: var(--line); padding: 0.6rem 0.75rem; gap: 0.25rem; }
+.notice-egress .egress-title { margin: 0; font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; color: var(--accent-ink); font-family: inherit; }
+.notice-egress .egress-head { margin: 0; display: flex; align-items: baseline; gap: 0.45rem; color: var(--ink); font-size: 0.86rem; }
+.notice-egress .egress-num { font-family: var(--serif); font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; color: var(--accent-ink); }
+.notice-egress .egress-others { font-size: 0.76rem; }
+
+/* Sample walk card on Start. */
+.walk-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; max-width: 46rem; }
+.walk-text { min-width: 0; flex: 1 1 18rem; }
+.walk-text p { margin: 0; }
+/* Desktop: the note stays in view at the top of the notice area while newer notices scroll under it,
+   with room on the right for the lock button. */
+@media (min-width: 1024px) {
+  .area-notice .notice-egress { position: sticky; top: 0; z-index: 2; background: var(--zone-note); padding-right: 4.2rem; }
+}

@@ -147,6 +147,16 @@
           </div>
         </section>
 
+        <section class="dash walk" id="walk-card" aria-labelledby="walk-title">
+          <h2 id="walk-title" class="dash-h">New here?</h2>
+          <div class="dash-card walk-card">
+            <div class="walk-text">
+              <p class="dash-label"><strong>Walk through a sample lease</strong></p>
+              <p class="dash-sub">About two minutes. The names in it are made up, and nothing leaves this device unless you approve it.</p>
+            </div>
+            <button id="btn-start-walk" data-testid="btn-start-walk" type="button" class="btn btn-outline">Start the walk</button>
+          </div>
+        </section>
         <section class="dash" aria-labelledby="dash-so-far">
           <h2 id="dash-so-far" class="dash-h">On this device so far</h2>
           <div class="dash-cards">
@@ -536,6 +546,14 @@
 
   <!-- The notice board. Moved into the current step's panel on desktop; one floating note on phones. -->
   <div id="toast-region" class="toast-region notice-board" tabindex="0" role="log" aria-live="polite" aria-relevant="additions" aria-label="Notices">
+    <!-- "Left this device": counted from the browser's own record of requests, on every step. -->
+    <section id="egress-note" class="notice notice-info notice-egress" data-info="all" data-testid="egress-note" aria-live="off" aria-labelledby="egress-title">
+      <h3 id="egress-title" class="egress-title">Left this device</h3>
+      <p class="egress-head"><span id="egress-count" class="egress-num" data-testid="egress-count">0</span> <span id="egress-label">requests to cloud AI</span></p>
+      <p id="egress-detail" class="info-text">Nothing from your document is sent until you approve the exact text.</p>
+      <p id="egress-reading" class="info-text">Your document is read on this device.</p>
+      <p id="egress-others" class="info-text egress-others" hidden></p>
+    </section>
     <div class="notice notice-info" data-info="1" aria-live="off">
       <span class="info-tag">Info</span>
       <p id="file-limits" class="info-text"></p>

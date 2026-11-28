@@ -10,6 +10,7 @@ import type {
   SupportedFirebaseCloudModel,
 } from "../core/types.ts";
 import { buildSamples } from "./samples.ts";
+import { describeEgress, watchEgress, type EgressCounts } from "./egress.ts";
 import { initThemeControls } from "./theme.ts";
 import { clearTally, readTally, recordTally, tallyText } from "./tally.ts";
 import { buildDocSegments, docHeaderText, markAction, markStateText, type MarkState } from "./docView.ts";
@@ -348,7 +349,7 @@ function placeNoticeBoard(): void {
   const lock = el("privacy-lock");
   if (slot && lock.parentElement !== slot) slot.appendChild(lock);
   // Info notes: only the current step's note shows. They update in place.
-  for (const n of b.querySelectorAll<HTMLElement>("[data-info]")) n.hidden = n.dataset.info !== String(currentStep);
+  for (const n of b.querySelectorAll<HTMLElement>("[data-info]")) n.hidden = n.dataset.info !== "all" && n.dataset.info !== String(currentStep);
 }
 
 /** aria-disabled keeps a button focusable and in the Tab order, so it can explain itself. */
@@ -467,6 +468,7 @@ function goTo(step: StepNumber, focus = true): void {
   currentStep = step;
   advancedOpen = false;
   renderAll();
+  renderWalk();
   if (focus) el(`h-${step}`).focus({ preventScroll: false });
 }
 
@@ -1250,6 +1252,72 @@ function highlightRow(entityId: string): void {
   window.setTimeout(() => row.classList.remove("is-new"), 3200);
 }
 
+// ---- "Left this device" ----
+let egressCounts: EgressCounts = { ai: 0, support: 0, other: 0 };
+
+function renderEgress(): void {
+  const t = controller.getObservedFirebaseTelemetry();
+  const local = controller.document
+    ? t.lastLocalInferenceSource === "on_device"
+      ? "on_device"
+      : t.lastLocalInferenceSource === "DEGRADED_DETERMINISTIC_SAFE"
+        ? "rules"
+        : null
+    : null;
+  const snap = controller.approvalMachine.getSnapshot();
+  const v = describeEgress({
+    counts: egressCounts,
+    cloudSource: controller.findings.length > 0 ? t.lastCloudInferenceSource : null,
+    approvedSha: snap.approvedPayloadSha256 ?? null,
+    localSource: local,
+  });
+  el("egress-count").textContent = String(v.aiCount);
+  el("egress-label").textContent = v.label;
+  el("egress-detail").textContent = v.detail;
+  el("egress-reading").textContent = v.readingOn;
+  const o = el("egress-others");
+  o.hidden = !v.others;
+  o.textContent = v.others ?? "";
+}
+
+// ---- Sample walk: a hint on each step for first-time visitors (and judges, via #walk) ----
+let walkOn = false;
+let walkStarting = false;
+const WALK_HINTS: Partial<Record<StepNumber, { text: string; sub: string }>> = {
+  2: {
+    text: "Walk, step 2 of 4: these are the private details found on this device.",
+    sub: "Choose Hide or Show on a row, or just press Continue. Anything you haven't decided is hidden.",
+  },
+  3: {
+    text: "Walk, step 3 of 4: this is the exact text that could leave.",
+    sub: "Choose the deeper check, tick the box and press Approve this exact text, then Run the deeper check. Left this device still shows 0 until then.",
+  },
+  4: {
+    text: "Walk, step 4 of 4: real names are put back here, on this device.",
+    sub: "Left this device now shows what was sent. To try it with no internet, go Back and choose Check on this device only.",
+  },
+};
+
+function endWalk(): void {
+  walkOn = false;
+  removeNotice("walk");
+}
+
+function renderWalk(): void {
+  if (!walkOn) return;
+  const hint = WALK_HINTS[currentStep];
+  removeNotice("walk");
+  if (!hint) return;
+  postNotice({ key: "walk", source: "Walk", text: hint.text, sub: hint.sub, quiet: true, testid: "walk-hint", onClose: endWalk });
+}
+
+function startWalk(): void {
+  const lease = buildSamples().find((smp) => smp.id === "sample-tenant-lease");
+  if (!lease || isBusy()) return;
+  walkStarting = true;
+  void importDocument({ fileName: lease.fileName, mimeType: "text/plain", text: lease.text });
+}
+
 function renderAll(): void {
   const focus = focusKey(document.activeElement);
   const maxStep = furthestStep(Boolean(controller.document), controller.findings.length > 0);
@@ -1265,6 +1333,7 @@ function renderAll(): void {
   renderResults();
   renderDocView();
   renderUnderTheHood();
+  renderEgress();
   const init = el<HTMLButtonElement>("btn-init-nano");
   init.disabled = busyText !== null;
   restoreFocus(focus);
@@ -1277,6 +1346,8 @@ async function importDocument(
   undoSnapshot = null;
   openMoreRows.clear();
   clearNotices();
+  walkOn = walkStarting;
+  walkStarting = false;
   lastImport = input;
   pendingRestore = null;
   const name = input.fileName || "your document";
@@ -2193,13 +2264,26 @@ async function initUi(): Promise<void> {
       clearTally();
       talliedDocs.clear();
       finishShownFor = null;
+      walkOn = false;
       clearNotices();
       goTo(1, false);
       postNotice({ source: "App", text: "Cleared. Your document, results and saved data are gone from this device." });
     }
   });
 
+  el("btn-start-walk").addEventListener("click", startWalk);
+  watchEgress((c) => {
+    egressCounts = c;
+    renderEgress();
+  });
+
   renderAll();
+  // Deep link for the Devpost testing instructions: /#walk (or ?walk) starts the sample walk.
+  const wantsWalk = location.hash === "#walk" || new URLSearchParams(location.search).has("walk");
+  if (wantsWalk) startWalk();
+  window.addEventListener("hashchange", () => {
+    if (location.hash === "#walk") startWalk();
+  });
   await controller.refreshReadiness();
   renderAll();
 }
