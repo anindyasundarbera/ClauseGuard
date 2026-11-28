@@ -37,9 +37,9 @@ ClauseGuard lists the names, contact details, account numbers and amounts it fou
 
 ClauseGuard first works out what kind of document it is (a contract, a medical report, a bill or a bank statement) and says so at the top of the list, for example "Looks like a medical report". The headings follow from that, such as "Patients, doctors and relatives" or "Patient and record numbers". Values printed next to a form label, such as "Patient Name :", "UHID :", "DOB :" or "Mobile No :", are found and hidden automatically, and the row tells you which label it was next to. An item that appears several times is listed once.
 
-- **Hide all suggested items** accepts the whole list in one click.
+- The buttons stay in a bar at the bottom of the screen while you scroll. **Hide all** (it shows how many) hides every item still waiting for a choice. The **⋯** button next to it has more one-click actions: hide all names, hide all numbers and IDs, hide everything on the list, undo your last change, and add something we missed.
 - Automatic detection is good at numbers and emails but **can miss people's names**. Read the list, and if something is missing, type it under **Hide something we missed**, pick what it is (person, company, address and so on) and press **Hide it everywhere**. It is hidden in every place it appears.
-- Press **Continue to approval** when you are happy.
+- Press **Continue** when you are happy. If some items still need a choice, ClauseGuard asks you to hide them or go back and choose. Nothing undecided is ever sent.
 
 Hidden items are swapped for labelled placeholders in square brackets, so the AI still knows "this is the tenant" or "this is an amount" without seeing the real value.
 
@@ -75,7 +75,7 @@ The deeper check uses Google's Gemini model through Firebase AI Logic. The reque
 ## The status bar at the top
 
 - **Private AI on this device** shows whether Chrome's built-in model (Gemma) is ready. If it says it can be set up, press **Set up private AI** to download it. This is a large download (about 2.3 GB) and only works on recent Chrome with the built-in AI features turned on. **You do not need it.** Without it, ClauseGuard uses built-in rules to find sensitive details, and nothing is sent to the cloud instead.
-- **Deeper check** says either "cloud connected and protected" (a real Gemini check is available) or "practice mode". Practice mode runs a clearly labelled simulation on your device and sends nothing.
+- **Deeper check** says either "cloud connected and protected" (a real Gemini check is available) or "cloud not set up, so it runs on this device". In that case the deeper check is a clearly labelled simulation on your device and nothing is sent.
 
 The **Under the hood** section at the bottom is for developers and judges. It shows which model answered (on-device or in the cloud), the approval fingerprint, and a 16-field privacy report.
 

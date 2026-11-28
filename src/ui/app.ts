@@ -20,7 +20,11 @@ import {
   findingSourceLabel,
   friendlyError,
   furthestStep,
+  idsToHide,
   ledgerCounts,
+  NUMBER_CATEGORIES,
+  reviewAnnouncement,
+  reviewContinueBlocker,
   roleLabel,
   severityLabel,
   plainWarnings,
@@ -44,6 +48,92 @@ let currentStep: StepNumber = 1;
 let busyText: string | null = null;
 let errorText: string | null = null;
 let noticeText: string | null = null;
+/** True while a quiet Review change runs: blocks double taps without the "Updating…" banner. */
+let quietBusy = false;
+/** "More options" rows the user has opened, so a re-render keeps them open. */
+const openMoreRows = new Set<string>();
+/** Statuses before the last Review change, for "Undo last change" (one level). */
+let undoSnapshot: Map<string, DetectedEntity["reviewStatus"]> | null = null;
+
+const isBusy = (): boolean => busyText !== null || quietBusy;
+
+/** aria-disabled keeps a button focusable and in the Tab order, so it can explain itself. */
+function setAriaDisabled(btn: HTMLElement, off: boolean): void {
+  btn.setAttribute("aria-disabled", String(off));
+}
+
+function isShown(node: Element | null): node is HTMLElement {
+  return node instanceof HTMLElement && node.isConnected && node.getClientRects().length > 0;
+}
+
+/** Where focus goes if the control the user was on disappears after a re-render. */
+const FOCUS_FALLBACK: Record<string, string> = {
+  "btn-accept-all": "btn-review-continue",
+  "btn-review-undo": "btn-review-more",
+};
+
+function focusKey(node: Element | null): string | null {
+  if (!(node instanceof HTMLElement) || node === document.body) return null;
+  if (node.id) return `id:${node.id}`;
+  if (node.dataset.testid) return `testid:${node.dataset.testid}`;
+  return null;
+}
+
+function findByKey(key: string): HTMLElement | null {
+  const [kind, value] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+  if (kind === "id") return document.getElementById(value);
+  return document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(value)}"]`);
+}
+
+/**
+ * Re-rendering rebuilds the Review list, which would drop keyboard focus to <body> and send
+ * keyboard and screen reader users back to the top. Put focus back on the same control.
+ */
+function restoreFocus(key: string | null): void {
+  if (!key) return;
+  if (isShown(document.activeElement) && document.activeElement !== document.body) return;
+  let target = findByKey(key);
+  if (!isShown(target)) {
+    const fallback = FOCUS_FALLBACK[key.slice(key.indexOf(":") + 1)];
+    target = fallback ? document.getElementById(fallback) : null;
+  }
+  if (isShown(target)) target.focus({ preventScroll: true });
+}
+
+/** Speak one outcome through the polite region. Cleared first so a repeat is spoken again. */
+function announce(text: string): void {
+  const box = el("review-announcer");
+  box.textContent = "";
+  window.setTimeout(() => { box.textContent = text; }, 50);
+}
+
+function snapshotStatuses(): void {
+  undoSnapshot = new Map(controller.entities.map((e) => [e.id, e.reviewStatus]));
+}
+
+/**
+ * A Review change that keeps the user's place: no busy banner, no spoken "Updating…", focus and
+ * scroll stay put, and the outcome is announced once.
+ */
+async function reviewChange(outcome: string, fn: () => Promise<void>): Promise<void> {
+  if (isBusy()) return;
+  resetConsent();
+  snapshotStatuses();
+  quietBusy = true;
+  errorText = null;
+  noticeText = null;
+  let ok = true;
+  try {
+    await fn();
+  } catch (err) {
+    ok = false;
+    errorText = friendlyError(err);
+  } finally {
+    quietBusy = false;
+    renderAll();
+  }
+  if (ok) announce(reviewAnnouncement(outcome, reviewCounts(controller.entities).pending));
+}
 
 function resetConsent(): void {
   el<HTMLInputElement>("chk-explicit-consent").checked = false;
@@ -101,12 +191,16 @@ function renderStepper(maxStep: StepNumber): void {
     btn.setAttribute("aria-label", `Step ${n}: ${STEP_TITLES[n]}${n < currentStep ? " (done)" : n === currentStep ? " (current)" : ""}`);
   }
   for (const n of STEPS) el(`panel-${n}`).hidden = n !== currentStep;
+  // The Review page has a sticky action bar: keep focused rows from hiding behind it.
+  document.documentElement.classList.toggle("has-actionbar", currentStep === 2);
 }
 
 function renderUnderTheHood(): void {
   el("nano-readiness-badge").textContent = controller.readinessState;
   el("nano-readiness-detail").textContent = controller.readinessDetail;
-  el<HTMLSelectElement>("privacy-mode-select").value = controller.privacyMode;
+  // One "on this device" choice in the UI; the safe-fallback variant is an internal detail.
+  el<HTMLSelectElement>("privacy-mode-select").value =
+    controller.privacyMode === "HYBRID_ANONYMIZED" ? "HYBRID_ANONYMIZED" : "LOCAL_ONLY";
   el<HTMLSelectElement>("cloud-model-select").value = controller.selectedCloudModel;
   const t = controller.getObservedFirebaseTelemetry();
   el("firebase-project-badge").textContent = controller.firebaseConfig?.projectId ?? "UNCONFIGURED (local simulation)";
@@ -157,6 +251,7 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
   surface.textContent = ent.surface;
   const meta = document.createElement("div");
   meta.className = "entity-meta";
+  meta.id = `meta-${ent.id}`;
   const parts = [detectionNote(group)];
   if (group.length > 1) parts.push(`appears ${group.length} times`);
   const how = parts.join(" · ");
@@ -177,18 +272,25 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
     b.textContent = label;
     b.setAttribute("aria-pressed", String(!pending && group.every((g) => g.reviewStatus === status)));
     b.setAttribute("data-testid", `${testPrefix}-${ent.id}`);
-    b.onclick = async () => {
-      resetConsent();
-      await run("Updating…", () => controller.toggleEntityStatus(ids, status));
-    };
+    b.setAttribute("aria-describedby", `meta-${ent.id}`);
+    b.onclick = () =>
+      reviewChange(status === "ACCEPTED" ? `${ent.surface} hidden` : `${ent.surface} kept visible`, () =>
+        controller.toggleEntityStatus(ids, status)
+      );
     return b;
   };
   seg.append(mk("Hide", "ACCEPTED", "accept"), mk("Keep visible", "REJECTED", "reject"));
 
   const more = document.createElement("details");
   more.className = "entity-more";
+  more.open = openMoreRows.has(ent.id);
+  more.addEventListener("toggle", () => {
+    if (more.open) openMoreRows.add(ent.id);
+    else openMoreRows.delete(ent.id);
+  });
   const sum = document.createElement("summary");
   sum.textContent = "More options";
+  sum.setAttribute("data-testid", `more-${ent.id}`);
   const field = document.createElement("div");
   field.className = "field";
   const lab = document.createElement("label");
@@ -204,10 +306,10 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
     o.selected = ent.role === r || (ent.role === "SUBPROCESSOR" && r === "PARTY");
     sel.appendChild(o);
   }
-  sel.onchange = async () => {
-    resetConsent();
-    await run("Updating…", () => controller.updateCanonicalGroupRole(ent.canonicalKey, sel.value as ContractRole));
-  };
+  sel.onchange = () =>
+    reviewChange(`Role set to ${roleLabel(sel.value)}`, () =>
+      controller.updateCanonicalGroupRole(ent.canonicalKey, sel.value as ContractRole)
+    );
   field.append(lab, sel);
   more.append(sum, field);
 
@@ -256,10 +358,31 @@ function renderReview(): void {
   const acceptAll = el<HTMLButtonElement>("btn-accept-all");
   const cont = el<HTMLButtonElement>("btn-review-continue");
   acceptAll.hidden = counts.pendingTotal === 0;
-  acceptAll.disabled = counts.pendingTotal === 0 || busyText !== null;
-  acceptAll.textContent = `Hide all ${rc.pending} suggested item${rc.pending === 1 ? "" : "s"}`;
-  cont.hidden = counts.pendingTotal > 0;
-  cont.disabled = !hasDoc || busyText !== null;
+  setAriaDisabled(acceptAll, isBusy());
+  // The count is always shown so the effect is clear before pressing.
+  acceptAll.replaceChildren(
+    document.createTextNode(`Hide all ${rc.pending}`),
+    Object.assign(document.createElement("span"), {
+      className: "visually-hidden",
+      textContent: ` item${rc.pending === 1 ? "" : "s"} that need a choice`,
+    })
+  );
+  // Continue is never a dead control: with items undecided it explains and offers a safe way on.
+  setAriaDisabled(cont, !hasDoc || isBusy());
+
+  const bulkCount = (kind: string | undefined): number =>
+    kind === "names"
+      ? idsToHide(ents, new Set(["PERSON"])).length
+      : kind === "numbers"
+        ? idsToHide(ents, NUMBER_CATEGORIES).length
+        : idsToHide(ents).length;
+  for (const b of document.querySelectorAll<HTMLButtonElement>("#review-more-menu [data-bulk]")) {
+    const n = bulkCount(b.dataset.bulk);
+    b.hidden = n === 0;
+    const base = b.dataset.bulk === "names" ? "Hide all names" : b.dataset.bulk === "numbers" ? "Hide all numbers and IDs" : "Hide everything on the list";
+    b.textContent = `${base} (${n})`;
+  }
+  el("btn-review-undo").hidden = undoSnapshot === null;
 }
 
 /** Renders sanitized text with placeholders highlighted. Uses text nodes only (never innerHTML). */
@@ -328,7 +451,7 @@ function renderApprove(): void {
   const approveBtn = el<HTMLButtonElement>("btn-approve-payload");
   const analyzeBtn = el<HTMLButtonElement>("btn-analyze-cloud");
   const idle = busyText === null;
-  approveBtn.disabled = !idle || !hasDoc || !consent || unresolved > 0;
+  setAriaDisabled(approveBtn, !idle || !hasDoc || !consent || unresolved > 0);
   approveBtn.hidden = approved && hybrid;
   analyzeBtn.disabled = !idle || !hasDoc || !hybrid || !approved;
   analyzeBtn.hidden = !(approved && hybrid);
@@ -340,6 +463,19 @@ function renderApprove(): void {
   else if (approved && !hybrid) hint = "Approved, but the deeper check is set to stay on this device. Choose “Send the cleaned text” above to run it.";
   else if (!consent && !approved) hint = "Tick the box to enable approval.";
   el("approve-hint").textContent = hint;
+}
+
+/** Why Approve can't run yet, or null. Shown next to the button when it is pressed. */
+function approveBlocker(): string | null {
+  const counts = ledgerCounts(controller.entities);
+  if (busyText !== null) return "Please wait. Something is still running.";
+  if (!controller.redaction) return "Import a document first.";
+  if (counts.pendingTotal > 0) {
+    const n = counts.pendingTotal;
+    return `${n} item${n === 1 ? " still needs" : "s still need"} a choice in step 2. Go back to review to choose.`;
+  }
+  if (!el<HTMLInputElement>("chk-explicit-consent").checked) return "Tick the box to agree before approving.";
+  return null;
 }
 
 function renderResults(): void {
@@ -391,6 +527,7 @@ function renderResults(): void {
 }
 
 function renderAll(): void {
+  const focus = focusKey(document.activeElement);
   const maxStep = furthestStep(Boolean(controller.document), controller.findings.length > 0);
   if (currentStep > maxStep) currentStep = maxStep;
   renderStatusBar();
@@ -403,12 +540,15 @@ function renderAll(): void {
   renderUnderTheHood();
   const init = el<HTMLButtonElement>("btn-init-nano");
   init.disabled = busyText !== null;
+  restoreFocus(focus);
 }
 
 async function importDocument(
   input: Parameters<ClauseGuardSessionController["ingestFileOrText"]>[0]
 ): Promise<void> {
   resetConsent();
+  undoSnapshot = null;
+  openMoreRows.clear();
   const ok = await run("Reading your document on this device…", () => controller.ingestFileOrText(input));
   if (ok) goTo(2);
 }
@@ -486,11 +626,93 @@ async function initUi(): Promise<void> {
   });
 
   // Review
-  el("btn-accept-all").addEventListener("click", async () => {
-    resetConsent();
-    await run("Updating…", () => controller.acceptAllPendingEntities());
+  el("btn-accept-all").addEventListener("click", () =>
+    reviewChange("All undecided items hidden", () => controller.acceptAllPendingEntities())
+  );
+
+  const continueDialog = el<HTMLDialogElement>("continue-dialog");
+  el("btn-review-continue").addEventListener("click", () => {
+    if (isBusy() || !controller.document) return;
+    const blocker = reviewContinueBlocker(reviewCounts(controller.entities).pending);
+    if (!blocker) {
+      goTo(3);
+      return;
+    }
+    // Nothing is skipped silently: undecided items are either hidden here or chosen by hand.
+    el("continue-dialog-desc").textContent = blocker;
+    continueDialog.showModal();
+    el("btn-dialog-hide-continue").focus();
   });
-  el("btn-review-continue").addEventListener("click", () => goTo(3));
+  el("btn-dialog-back").addEventListener("click", () => continueDialog.close());
+  continueDialog.addEventListener("close", () => {
+    if (currentStep === 2) el("btn-review-continue").focus({ preventScroll: true });
+  });
+  el("btn-dialog-hide-continue").addEventListener("click", async () => {
+    continueDialog.close();
+    resetConsent();
+    snapshotStatuses();
+    const ok = await run("Hiding the rest…", () => controller.acceptAllPendingEntities());
+    if (ok) goTo(3);
+  });
+
+  // "More actions" menu in the Review bar
+  const moreBtn = el<HTMLButtonElement>("btn-review-more");
+  const moreMenu = el("review-more-menu");
+  const setMenu = (open: boolean, returnFocus = false): void => {
+    moreMenu.hidden = !open;
+    moreBtn.setAttribute("aria-expanded", String(open));
+    if (open) moreMenu.querySelector<HTMLButtonElement>(".menu-item:not([hidden])")?.focus();
+    else if (returnFocus) moreBtn.focus();
+  };
+  moreBtn.addEventListener("click", () => setMenu(moreMenu.hidden));
+  moreMenu.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      setMenu(false, true);
+    }
+  });
+  moreBtn.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !moreMenu.hidden) setMenu(false);
+  });
+  document.addEventListener("click", (ev) => {
+    if (!moreMenu.hidden && !(ev.target as Element).closest(".menu-wrap")) setMenu(false);
+  });
+  for (const b of moreMenu.querySelectorAll<HTMLButtonElement>("[data-bulk]")) {
+    b.addEventListener("click", async () => {
+      const kind = b.dataset.bulk;
+      const ids =
+        kind === "names"
+          ? idsToHide(controller.entities, new Set(["PERSON"]))
+          : kind === "numbers"
+            ? idsToHide(controller.entities, NUMBER_CATEGORIES)
+            : idsToHide(controller.entities);
+      setMenu(false, true);
+      if (ids.length === 0) return;
+      const what = kind === "names" ? "All names" : kind === "numbers" ? "All numbers and IDs" : "Everything on the list";
+      await reviewChange(`${what} hidden`, () => controller.toggleEntityStatus(ids, "ACCEPTED"));
+    });
+  }
+  el("btn-review-undo").addEventListener("click", async () => {
+    const snap = undoSnapshot;
+    setMenu(false, true);
+    if (!snap || isBusy()) return;
+    await reviewChange("Last change undone", async () => {
+      for (const ent of controller.entities) {
+        const prev = snap.get(ent.id);
+        if (prev) ent.reviewStatus = prev;
+      }
+      // An empty toggle still invalidates any approval and rebuilds the cleaned text.
+      await controller.toggleEntityStatus([], "ACCEPTED");
+    });
+    undoSnapshot = null;
+    renderAll();
+  });
+  el("btn-review-add").addEventListener("click", () => {
+    setMenu(false);
+    const input = el<HTMLInputElement>("manual-surface");
+    input.scrollIntoView({ block: "center" });
+    input.focus({ preventScroll: true });
+  });
   el<HTMLFormElement>("manual-entity-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const surf = el<HTMLInputElement>("manual-surface").value.trim();
@@ -519,7 +741,11 @@ async function initUi(): Promise<void> {
 
   // Approve
   el<HTMLSelectElement>("privacy-mode-select").addEventListener("change", (ev) => {
-    controller.privacyMode = (ev.target as HTMLSelectElement).value as PrivacyMode;
+    const picked = (ev.target as HTMLSelectElement).value as PrivacyMode;
+    controller.privacyMode =
+      picked === "LOCAL_ONLY" && controller.readinessState === "DEGRADED_DETERMINISTIC_SAFE"
+        ? "DEGRADED_DETERMINISTIC_SAFE"
+        : picked;
     renderAll();
   });
   el<HTMLSelectElement>("cloud-model-select").addEventListener("change", (ev) => {
@@ -529,6 +755,12 @@ async function initUi(): Promise<void> {
   el<HTMLInputElement>("chk-explicit-consent").addEventListener("change", () => renderAll());
 
   el("btn-approve-payload").addEventListener("click", async () => {
+    const blocker = approveBlocker();
+    if (blocker) {
+      el("approve-hint").textContent = blocker;
+      if (blocker.startsWith("Tick")) el("chk-explicit-consent").focus();
+      return;
+    }
     await run("Locking in your approval…", async () => {
       await controller.approveCurrentPayload();
     });

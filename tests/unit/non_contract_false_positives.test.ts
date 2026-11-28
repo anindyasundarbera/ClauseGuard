@@ -121,7 +121,7 @@ describe("Review list shows each repeated item once", () => {
     ];
     const rows = groupForReview(ents).get("PERSON") ?? [];
     expect(rows.map((r) => r.length)).toEqual([2, 3]);
-    expect(detectionNote(rows[0])).toBe("89% sure");
+    expect(detectionNote(rows[0])).toBe("looks like a person's name");
     expect(detectionNote(rows[1])).toBe("suggested by on-device AI");
     expect(reviewCounts(ents)).toEqual({ found: 2, pending: 2, hidden: 0, visible: 0 });
   });

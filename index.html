@@ -39,7 +39,7 @@
     </div>
     <div class="status-item status-item-right">
       <span id="cloud-dot" class="dot dot-neutral" aria-hidden="true"></span>
-      <span id="cloud-headline" class="status-text">Deeper check: practice mode</span>
+      <span id="cloud-headline" class="status-text">Deeper check: cloud not set up, so it runs on this device</span>
     </div>
     <p id="device-ai-help" class="status-help">&nbsp;</p>
   </div>
@@ -60,6 +60,8 @@
     <div id="error-box" data-testid="error-box" class="banner banner-error" role="alert" hidden></div>
     <div id="notice-box" data-testid="notice-box" class="banner banner-info" role="status" aria-live="polite" hidden></div>
     <div id="warnings-box" data-testid="warnings-box" class="banner banner-warn" role="status" aria-live="polite" hidden></div>
+    <!-- One polite region for Review outcomes ("Hidden. 7 left to decide."), never for activity. -->
+    <div id="review-announcer" data-testid="review-announcer" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <!-- STEP 1: IMPORT -->
     <section id="panel-1" class="panel" data-panel="1" aria-labelledby="h-1">
@@ -91,7 +93,7 @@
       </div>
 
       <p class="tip"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people’s names. Scan the list, and add any name below.</p>
-      <div id="review-summary" class="summary-chips" aria-live="polite"></div>
+      <div id="review-summary" class="summary-chips"></div>
       <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
 
       <form id="manual-entity-form" class="manual-form" aria-labelledby="manual-title">
@@ -117,12 +119,36 @@
         </div>
       </form>
 
-      <div class="step-actions">
-        <button type="button" class="btn btn-ghost" data-go="1">Back</button>
-        <button id="btn-accept-all" data-testid="btn-accept-all" type="button" class="btn btn-primary">Hide all suggested items</button>
-        <button id="btn-review-continue" data-testid="btn-review-continue" type="button" class="btn btn-primary" hidden>Continue to approval</button>
+      <!-- Sticky action bar: stays in reach while the item list scrolls above it. -->
+      <div id="review-actionbar" data-testid="review-actionbar" class="action-bar" role="region" aria-label="Actions">
+        <button type="button" class="btn btn-ghost action-back" data-go="1">Back</button>
+        <div class="action-bulk">
+          <button id="btn-accept-all" data-testid="btn-accept-all" type="button" class="btn btn-outline action-hide-all">Hide all</button>
+          <div class="menu-wrap">
+            <button id="btn-review-more" data-testid="btn-review-more" type="button" class="btn btn-outline btn-icon" aria-expanded="false" aria-controls="review-more-menu">
+              <span aria-hidden="true">&#8943;</span><span class="visually-hidden">More actions</span>
+            </button>
+            <div id="review-more-menu" data-testid="review-more-menu" class="action-menu" role="group" aria-label="More actions" hidden>
+              <button type="button" class="menu-item" data-bulk="names" data-testid="bulk-names">Hide all names</button>
+              <button type="button" class="menu-item" data-bulk="numbers" data-testid="bulk-numbers">Hide all numbers and IDs</button>
+              <button type="button" class="menu-item" data-bulk="everything" data-testid="bulk-everything">Hide everything on the list</button>
+              <button type="button" class="menu-item" id="btn-review-undo" data-testid="btn-review-undo">Undo last change</button>
+              <button type="button" class="menu-item" id="btn-review-add" data-testid="btn-review-add">Add something we missed</button>
+            </div>
+          </div>
+        </div>
+        <button id="btn-review-continue" data-testid="btn-review-continue" type="button" class="btn btn-primary action-main">Continue</button>
       </div>
     </section>
+
+    <dialog id="continue-dialog" data-testid="continue-dialog" class="sheet" aria-labelledby="continue-dialog-title" aria-describedby="continue-dialog-desc">
+      <h2 id="continue-dialog-title" class="sheet-title" tabindex="-1">Some details still need a choice</h2>
+      <p id="continue-dialog-desc"></p>
+      <div class="sheet-actions">
+        <button id="btn-dialog-back" data-testid="btn-dialog-back" type="button" class="btn btn-ghost">Go back and choose</button>
+        <button id="btn-dialog-hide-continue" data-testid="btn-dialog-hide-continue" type="button" class="btn btn-primary">Hide them and continue</button>
+      </div>
+    </dialog>
 
     <!-- STEP 3: APPROVE -->
     <section id="panel-3" class="panel" data-panel="3" aria-labelledby="h-3" hidden>
@@ -153,8 +179,7 @@
         <div class="field">
           <label for="privacy-mode-select">Where should the deeper check run?</label>
           <select id="privacy-mode-select" data-testid="privacy-mode-select">
-            <option value="LOCAL_ONLY">On this device only. Nothing is sent.</option>
-            <option value="DEGRADED_DETERMINISTIC_SAFE">On this device only (safe fallback). Nothing is sent.</option>
+            <option value="LOCAL_ONLY">Check on this device only. Nothing is sent.</option>
             <option value="HYBRID_ANONYMIZED">Send the cleaned text for a deeper check, after I approve</option>
           </select>
         </div>
@@ -169,7 +194,7 @@
       <div class="step-actions">
         <button type="button" class="btn btn-ghost" data-go="2">Back to review</button>
         <button id="btn-local-triage" data-testid="btn-local-triage" class="btn btn-outline" type="button" disabled>Check on this device only</button>
-        <button id="btn-approve-payload" data-testid="btn-approve-payload" class="btn btn-primary" type="button" disabled>Approve this exact text</button>
+        <button id="btn-approve-payload" data-testid="btn-approve-payload" class="btn btn-primary" type="button" aria-disabled="true" aria-describedby="approve-hint">Approve this exact text</button>
         <button id="btn-analyze-cloud" data-testid="btn-analyze-cloud" class="btn btn-primary" type="button" disabled hidden>Run the deeper check</button>
       </div>
     </section>
