@@ -186,3 +186,90 @@ export function vetModelCandidate(
       return null;
   }
 }
+
+/** Ordinary words that end a name in running text ("DR ANUP KHETAN FROM LAST 15 YEARS"). */
+const NAME_STOP_WORDS = new Set<string>([
+  ...NAME_TAIL_LABELS,
+  "from", "last", "seen", "cleared", "for", "to", "in", "on", "at", "with", "by", "is", "was", "has",
+  "had", "have", "under", "since", "adv", "advised", "adviced", "advice", "as", "per", "who", "will",
+  "his", "her", "said", "team", "also", "if", "after", "before", "regarding", "re", "cc", "kindly",
+  "please", "sent", "visit", "opinion", "consult", "consultation", "follow", "review", "done", "called",
+  "informed", "examined", "dr", "mr", "mrs", "ms", "prof", "sir", "madam", "opd", "ipd", "op", "ip",
+]);
+
+export interface HonorificName {
+  start: number;
+  end: number;
+}
+
+/**
+ * Names written after an honorific ("Dr. Jiban Basak", "Mr Arun Kumar Bera", "DR ANUP KHETAN").
+ *
+ * In running all-caps notes there is no casing to show where a name ends, so a name ends at an
+ * ordinary word ("FROM", "SEEN", "AND"), a form label, a colon, a possessive ("KHETAN'S") or
+ * punctuation. When none of those is present ("DR KHETAN IVO SARCOIDOSIS"), the name is cut to
+ * the words already seen in a name that did end clearly ("ANUP KHETAN" gives "DR KHETAN").
+ * All-caps "MR", "MRS" and "MS" also need two name words, because in clinical notes MR and MS
+ * are usually abbreviations (mitral regurgitation, multiple sclerosis).
+ */
+export function findHonorificNames(text: string): HonorificName[] {
+  const re =
+    /(?<![\p{L}\p{N}])(Dr|DR|Mr|MR|Mrs|MRS|Ms|MS|Prof|PROF|Shri|SHRI|Smt|SMT)(\.?)[ \t]+(\p{Lu}[\p{L}'’-]*\.?(?:[ \t]+\p{Lu}[\p{L}'’-]*\.?){0,4})/gu;
+  type Cand = { start: number; words: Array<{ s: number; e: number; w: string }>; clear: boolean; title: string };
+  const cands: Cand[] = [];
+  for (const m of text.matchAll(re)) {
+    const start = m.index ?? 0;
+    const namesStart = start + m[0].length - m[3].length;
+    const words: Cand["words"] = [];
+    let clear = false;
+    for (const wm of m[3].matchAll(/\S+/g)) {
+      const s = namesStart + (wm.index ?? 0);
+      let w = wm[0];
+      const bare = w.replace(/[.,]+$/, "").toLowerCase();
+      if (NAME_STOP_WORDS.has(bare) || /^[ \t]*:/.test(text.slice(s + w.length, s + w.length + 3))) {
+        clear = words.length > 0;
+        break;
+      }
+      const possessive = /['’][sS]$/.test(w);
+      if (possessive) w = w.slice(0, -2);
+      words.push({ s, e: s + w.length, w });
+      if (possessive || /[.,]$/.test(w) && w.length > 2) {
+        clear = true;
+        break;
+      }
+      if (words.length === 4) break;
+    }
+    if (words.length === 0) continue;
+    // Drop trailing punctuation ("PAL.", "KHETAN-", "BERA,") but keep a final initial ("Ravi K.").
+    const last = words[words.length - 1];
+    if (!/^\p{Lu}\.$/u.test(last.w)) {
+      const trimmed = last.w.replace(/[.,'’-]+$/, "");
+      last.e -= last.w.length - trimmed.length;
+      last.w = trimmed;
+    }
+    if (!clear) {
+      // Natural end of the match: next character is a line break or punctuation, not a word.
+      const after = text.slice(last.e, last.e + 2);
+      clear = /^(?:[ \t]*[\n,;()|]|[ \t]*$)/.test(after) || words.length < 4 && /^[ \t]+\p{Ll}/u.test(after);
+    }
+    const allCaps = words.every((x) => x.w === x.w.toUpperCase());
+    cands.push({ start, words, clear: clear || !allCaps, title: m[1] });
+  }
+
+  const knownTokens = new Set<string>();
+  for (const c of cands) if (c.clear) for (const x of c.words) knownTokens.add(x.w.replace(/\.$/, "").toUpperCase());
+
+  const out: HonorificName[] = [];
+  for (const c of cands) {
+    let words = c.words;
+    if (!c.clear) {
+      let keep = 0;
+      while (keep < words.length && knownTokens.has(words[keep].w.replace(/\.$/, "").toUpperCase())) keep++;
+      words = words.slice(0, keep > 0 ? keep : Math.min(2, words.length));
+    }
+    if (/^(?:MR|MRS|MS)$/.test(c.title) && words.length < 2) continue;
+    if (words.join("").length < 3) continue;
+    out.push({ start: c.start, end: words[words.length - 1].e });
+  }
+  return out;
+}

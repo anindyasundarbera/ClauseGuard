@@ -189,6 +189,27 @@ interface FieldRule {
 
 const HONORIFIC_RE = "(?:Dr|Mr|Mrs|Ms|Miss|Prof|Shri|Smt|Sri|Kumari|Master|Baby|B\\/O)\\.?";
 
+/**
+ * Addresses are often printed over several lines. Keep following lines while they read like
+ * more of the address: the line so far ends with a comma, or the next line has a comma or a
+ * postcode and no "Label :". Stops after a line that ends with a postcode, and after 3 lines.
+ */
+function addressWithContinuation(rest: string): string {
+  const lines = rest.split("\n");
+  let out = lines[0].split("\t")[0];
+  for (let i = 1; i < lines.length && i <= 3; i++) {
+    if (/(?<!\d)\d{5,6}\s*$/.test(out)) break;
+    const next = lines[i].split("\t")[0];
+    if (!next.trim() || /(?<!\d)\s?:(?!\d)/.test(next)) break;
+    const continues =
+      /,\s*$/.test(out) || (/,/.test(next) && next.length <= 80) || /^\s*[-–]?\s*\d{5,6}\b/.test(next);
+    if (!continues) break;
+    out += "\n" + next;
+    if (lines[i].includes("\t")) break;
+  }
+  return out;
+}
+
 /** Up to 6 name words; honorific optional; stops at the first non-name word. */
 function personValue(rest: string): string | null {
   const m = rest.match(new RegExp(`^(?:${HONORIFIC_RE}\\s+)?\\p{L}[\\p{L}'’.-]*(?:[ ]+\\p{L}[\\p{L}'’.-]*){0,5}`, "u"));
@@ -228,8 +249,8 @@ function phoneValue(rest: string): string | null {
 }
 
 function addressValue(rest: string): string | null {
-  const v = rest.replace(/[,;\s-]+$/, "");
-  return (v.match(/\p{L}/gu) ?? []).length >= 8 && v.length <= 160 ? v : null;
+  const v = rest.trimEnd().replace(/[,;]+$/, "").trimEnd();
+  return (v.match(/\p{L}/gu) ?? []).length >= 8 && v.length <= 240 ? v : null;
 }
 
 function orgValue(rest: string): string | null {
@@ -294,6 +315,16 @@ const FIELD_RULES: FieldRule[] = [
     value: idValue,
   },
   { category: "DATE_OF_BIRTH", labels: ["D\\.?O\\.?B\\.?", "Date of Birth", "Birth Date"], value: dateValue },
+  {
+    // Combined labels such as "Gender/Age/Dob : Male , 72 Years , 15/01/54": the date of birth
+    // is the date inside the value.
+    category: "DATE_OF_BIRTH",
+    labels: ["(?:(?:Gender|Sex|Age)\\s?/\\s?){1,2}D\\.?O\\.?B\\.?"],
+    value: (rest) => {
+      const m = rest.match(/(?<![\d/.-])\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?![\d/.-])/);
+      return m ? m[0] : null;
+    },
+  },
   {
     category: "PHONE",
     labels: ["Mobile(?: No\\.?)?", "Mob\\.?(?: No\\.?)?", "Phone(?: No\\.?)?", "Ph\\.?(?: No\\.?)?", "Contact(?: No\\.?)?", "Tel\\.?"],
@@ -365,9 +396,11 @@ export function runFieldDetectors(text: string): DetectedEntity[] {
     const rule = FIELD_RULES[ruleIdx];
     const label = m.groups?.[`f${ruleIdx}`]?.trim() ?? "";
     const valueStart = (m.index ?? 0) + m[0].length;
-    let rest = text.slice(valueStart, valueStart + 200);
+    let rest = text.slice(valueStart, valueStart + 240);
     const lineEnd = rest.search(/[\n\t]/);
-    if (lineEnd >= 0) rest = rest.slice(0, lineEnd);
+    if (lineEnd >= 0) {
+      rest = rule.category === "ADDRESS" ? addressWithContinuation(rest) : rest.slice(0, lineEnd);
+    }
     rest = cutAtNextLabel(rest);
     const value = rule.value(rest.trimEnd());
     if (!value) continue;
