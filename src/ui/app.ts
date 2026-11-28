@@ -63,7 +63,8 @@ const ROLES: ContractRole[] = [
 let currentStep: StepNumber = 1;
 let busyText: string | null = null;
 let errorText: string | null = null;
-let noticeText: string | null = null;
+/** True when the error came from the cloud check, so it slides in from the right as outside news. */
+let errorExt = false;
 /** True while a quiet Review change runs: blocks double taps without the "Updating…" banner. */
 let quietBusy = false;
 /** "More options" rows the user has opened, so a re-render keeps them open. */
@@ -72,10 +73,6 @@ const openMoreRows = new Set<string>();
 let undoSnapshot: Map<string, DetectedEntity["reviewStatus"]> | null = null;
 
 const isBusy = (): boolean => busyText !== null || quietBusy;
-/** True while a busy action shows its progress in place (Import), so no corner toast is needed. */
-let busyInPlace = false;
-/** Name of the file being read, so the drop area can turn into a file card. */
-let readingName: string | null = null;
 
 /**
  * A timer that pauses while the pointer is over the element or focus is inside it, so a message
@@ -127,56 +124,212 @@ class AutoHide {
   }
 }
 
-const TOAST_MS = 8000;
+/* ---------- Notice board ----------
+   Every app reply lands here, newest last. App-made notices slide in from the left, outside news
+   (private AI download, the cloud's reply) from the right. One board element moves into the
+   current step's side panel; on phones it floats above the bottom bar and shows the latest only. */
+interface NoticeOpts {
+  text: string;
+  source: string;
+  /** Outside news (slides in from the right). */
+  ext?: boolean;
+  /** Same key = update that notice in place instead of adding another. */
+  key?: string;
+  tone?: "error" | "warn";
+  sub?: string;
+  subTestid?: string;
+  /** "busy" is a sliding bar, a number is a percentage. */
+  bar?: "busy" | number | null;
+  /** A button inside the notice that goes away after `ms`. The notice stays. */
+  action?: { label: string; ms: number; run: () => void };
+  onClose?: () => void;
+  /** Progress notices stay silent on update; their milestones are spoken elsewhere. */
+  quiet?: boolean;
+  testid?: string;
+}
+const NOTICE_MAX = 40;
+const NOTICE_UNDO_MS = 8000;
+const NOTICE_PHONE_MS = 10000;
+const noticeHiders = new WeakMap<HTMLElement, AutoHide>();
+const staleTimers = new WeakMap<HTMLElement, number>();
+const noticeBoard = (): HTMLElement => el("toast-region");
 
-/** A small bottom-right message with an optional action. Returns a function that removes it. */
-function showToast(opts: { text: string; key?: string; actionLabel?: string; onAction?: () => void; onClose?: () => void }): () => void {
-  const region = el("toast-region");
-  if (opts.key) dismissToasts(opts.key);
-  const box = document.createElement("div");
-  box.className = "toast";
-  if (opts.key) box.dataset.toastKey = opts.key;
-  const text = document.createElement("span");
-  text.className = "toast-text";
-  text.textContent = opts.text;
-  box.appendChild(text);
-  const hider = new AutoHide(box);
-  const remove = (): void => {
-    hider.cancel();
-    box.remove();
-  };
-  if (opts.actionLabel && opts.onAction) {
-    const act = document.createElement("button");
-    act.type = "button";
-    act.className = "btn btn-small btn-outline toast-action";
-    act.textContent = opts.actionLabel;
-    act.addEventListener("click", () => {
-      remove();
-      opts.onAction?.();
-    });
-    box.appendChild(act);
+function noticeTime(): string {
+  try {
+    return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
   }
-  box.appendChild(closeButton(() => { remove(); opts.onClose?.(); }));
-  region.appendChild(box);
-  hider.start(TOAST_MS, remove);
-  return remove;
 }
 
-function closeButton(onClick: () => void): HTMLButtonElement {
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "toast-close";
-  close.setAttribute("aria-label", "Close this message");
-  const x = document.createElement("span");
-  x.setAttribute("aria-hidden", "true");
-  x.textContent = "\u00d7";
-  close.append(x);
-  close.addEventListener("click", onClick);
-  return close;
+function sourceForStep(): string {
+  return ["Import", "Review", "Approve", "Results"][currentStep - 1] ?? "App";
 }
 
-function dismissToasts(key: string): void {
-  for (const t of document.querySelectorAll(`#toast-region [data-toast-key="${key}"]`)) t.remove();
+function fillNotice(n: HTMLElement, o: NoticeOpts): void {
+  const sig = JSON.stringify([o.text, o.source, o.ext, o.tone, o.sub, o.bar, o.action?.label, Boolean(o.onClose)]);
+  if (n.dataset.sig === sig) return;
+  n.dataset.sig = sig;
+  n.classList.add("notice");
+  n.classList.toggle("notice-ext", Boolean(o.ext));
+  n.classList.toggle("notice-app", !o.ext);
+  n.classList.toggle("notice-error", o.tone === "error");
+  n.classList.toggle("notice-warn", o.tone === "warn");
+  if (o.testid) n.setAttribute("data-testid", o.testid);
+  if (o.quiet) n.setAttribute("aria-live", "off");
+  else n.removeAttribute("aria-live");
+
+  const head = document.createElement("div");
+  head.className = "notice-head";
+  const text = document.createElement("p");
+  text.className = "notice-text";
+  text.textContent = o.text;
+  const src = document.createElement("span");
+  src.className = "notice-src";
+  src.textContent = o.source;
+  head.append(text, src);
+  const parts: HTMLElement[] = [head];
+
+  if (o.sub) {
+    const sub = document.createElement("p");
+    sub.className = "notice-sub";
+    sub.textContent = o.sub;
+    if (o.subTestid) sub.setAttribute("data-testid", o.subTestid);
+    parts.push(sub);
+  }
+  if (o.bar === "busy") {
+    const bar = document.createElement("span");
+    bar.className = "calm-bar";
+    bar.setAttribute("aria-hidden", "true");
+    bar.append(document.createElement("span"));
+    parts.push(bar);
+  } else if (typeof o.bar === "number") {
+    const pr = document.createElement("progress");
+    pr.className = "notice-progress";
+    pr.max = 100;
+    pr.value = o.bar;
+    pr.setAttribute("aria-label", "Progress");
+    parts.push(pr);
+  }
+
+  const foot = document.createElement("div");
+  foot.className = "notice-foot";
+  const time = document.createElement("time");
+  time.className = "notice-time";
+  time.textContent = noticeTime();
+  foot.append(time);
+  if (o.action) {
+    const { label, ms, run: act } = o.action;
+    // Only the newest Undo is real; older ones would put back stale choices.
+    for (const old of noticeBoard().querySelectorAll(".notice-action")) old.remove();
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-small notice-action";
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      btn.remove();
+      act();
+    });
+    foot.append(btn);
+    let hider = noticeHiders.get(n);
+    if (!hider) {
+      hider = new AutoHide(n);
+      noticeHiders.set(n, hider);
+    }
+    hider.start(ms, () => btn.remove());
+  }
+  if (o.onClose) {
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "notice-close";
+    close.setAttribute("aria-label", "Close this message");
+    const x = document.createElement("span");
+    x.setAttribute("aria-hidden", "true");
+    x.textContent = "\u00d7";
+    close.append(x);
+    close.addEventListener("click", o.onClose);
+    foot.append(close);
+  }
+  parts.push(foot);
+  n.replaceChildren(...parts);
+
+  // Phones show one floating note; it steps aside after a while unless it is an error.
+  n.classList.remove("is-stale");
+  const old = staleTimers.get(n);
+  if (old) window.clearTimeout(old);
+  staleTimers.set(n, window.setTimeout(() => n.classList.add("is-stale"), NOTICE_PHONE_MS));
+}
+
+function scrollBoardToNewest(): void {
+  const b = noticeBoard();
+  window.requestAnimationFrame(() => { b.scrollTop = b.scrollHeight; });
+}
+
+function postNotice(o: NoticeOpts): HTMLElement {
+  const b = noticeBoard();
+  let n = o.key ? b.querySelector<HTMLElement>(`[data-nkey="${o.key}"]`) : null;
+  if (!n) {
+    n = document.createElement("div");
+    if (o.key) n.dataset.nkey = o.key;
+    n.addEventListener("animationend", () => n!.classList.add("is-settled"));
+    b.appendChild(n);
+    const all = b.querySelectorAll(".notice:not([hidden])");
+    if (all.length > NOTICE_MAX) all[0].remove();
+  }
+  fillNotice(n, o);
+  scrollBoardToNewest();
+  return n;
+}
+
+function removeNotice(key: string): void {
+  noticeBoard().querySelector(`[data-nkey="${key}"]`)?.remove();
+}
+
+/** A new document is a new session: start the board fresh. */
+function clearNotices(): void {
+  for (const n of noticeBoard().querySelectorAll(".notice:not(#error-box)")) n.remove();
+}
+
+function stripUndo(): void {
+  for (const b of noticeBoard().querySelectorAll(".notice-action")) b.remove();
+}
+
+/** The error notice is one fixed element (it keeps its id and test id) that moves to the newest spot. */
+let shownError: string | null = null;
+function syncErrorNotice(): void {
+  if (errorText === shownError) return;
+  shownError = errorText;
+  const box = el("error-box");
+  if (!errorText) {
+    box.hidden = true;
+    box.replaceChildren();
+    delete box.dataset.sig;
+    noticeBoard().prepend(box);
+    return;
+  }
+  box.hidden = false;
+  noticeBoard().appendChild(box);
+  fillNotice(box, {
+    text: errorText,
+    source: errorExt ? "Cloud" : sourceForStep(),
+    ext: errorExt,
+    tone: "error",
+    onClose: () => { errorText = null; syncErrorNotice(); },
+  });
+  box.classList.remove("is-stale");
+  const t = staleTimers.get(box);
+  if (t) window.clearTimeout(t);
+  scrollBoardToNewest();
+}
+
+/** Put the board in the current step's side panel (desktop) so it always sits in the same place. */
+function placeNoticeBoard(): void {
+  const slot = document.getElementById(`panel-${currentStep}`)?.querySelector<HTMLElement>("[data-notice-slot]");
+  const b = noticeBoard();
+  if (slot && b.parentElement !== slot) {
+    slot.appendChild(b);
+    scrollBoardToNewest();
+  }
 }
 
 /** aria-disabled keeps a button focusable and in the Tab order, so it can explain itself. */
@@ -237,13 +390,13 @@ function snapshotStatuses(): void {
  * A Review change that keeps the user's place: no busy banner, no spoken "Updating…", focus and
  * scroll stay put, and the outcome is announced once.
  */
-async function reviewChange(outcome: string, fn: () => Promise<void>): Promise<void> {
+async function reviewChange(outcome: string, fn: () => Promise<void>, opts: { notice?: boolean } = {}): Promise<void> {
   if (isBusy()) return;
   resetConsent();
   snapshotStatuses();
+  const before = undoSnapshot;
   quietBusy = true;
   errorText = null;
-  noticeText = null;
   let ok = true;
   try {
     await fn();
@@ -254,7 +407,35 @@ async function reviewChange(outcome: string, fn: () => Promise<void>): Promise<v
     quietBusy = false;
     renderAll();
   }
-  if (ok) announce(reviewAnnouncement(outcome, reviewCounts(controller.entities).pending));
+  if (!ok) return;
+  const said = reviewAnnouncement(outcome, reviewCounts(controller.entities).pending);
+  if (opts.notice && before) {
+    // The notice board is a polite live region, so it speaks this once; Undo lives inside it for a few seconds.
+    postNotice({
+      text: said,
+      source: "Review",
+      action: {
+        label: "Undo",
+        ms: NOTICE_UNDO_MS,
+        run: () => {
+          void reviewChange("Undone", () => restoreStatuses(before)).then(() => {
+            if (currentStep === 2) el("btn-review-continue").focus({ preventScroll: true });
+          });
+        },
+      },
+    });
+  } else {
+    announce(said);
+  }
+}
+
+/** Put every row back to the status it had in a snapshot. An empty toggle rebuilds the cleaned text. */
+async function restoreStatuses(snap: Map<string, DetectedEntity["reviewStatus"]>): Promise<void> {
+  for (const ent of controller.entities) {
+    const prev = snap.get(ent.id);
+    if (prev) ent.reviewStatus = prev;
+  }
+  await controller.toggleEntityStatus([], "ACCEPTED");
 }
 
 function resetConsent(): void {
@@ -262,8 +443,7 @@ function resetConsent(): void {
 }
 
 function goTo(step: StepNumber, focus = true): void {
-  if (step !== currentStep) noticeText = null;
-  if (step === 4) dismissToasts("undo");
+  if (step === 4) stripUndo();
   currentStep = step;
   advancedOpen = false;
   renderAll();
@@ -274,40 +454,31 @@ function goTo(step: StepNumber, focus = true): void {
 /** Set when the cloud refused this app's App Check attestation; cleared by a later successful cloud check. */
 let cloudRefused = false;
 
-async function run(label: string, fn: () => Promise<void>, opts: { inPlace?: boolean } = {}): Promise<boolean> {
+async function run(
+  label: string,
+  fn: () => Promise<void>,
+  opts: { source?: string; done?: () => string | null } = {}
+): Promise<boolean> {
   busyText = label;
-  busyInPlace = Boolean(opts.inPlace);
   errorText = null;
-  noticeText = null;
+  errorExt = false;
+  postNotice({ key: "busy", text: label, source: opts.source ?? sourceForStep(), bar: "busy" });
   renderAll();
   try {
     await fn();
+    const done = opts.done?.() ?? null;
+    if (done) postNotice({ key: "busy", text: done, source: opts.source ?? sourceForStep(), bar: null });
+    else removeNotice("busy");
     return true;
   } catch (err) {
+    removeNotice("busy");
     errorText = friendlyError(err);
     return false;
   } finally {
     busyText = null;
-    busyInPlace = false;
     renderAll();
   }
 }
-
-/** Banners live in the corner toast area. They are rebuilt only when their text changes, so focus stays put. */
-function setBanner(id: string, text: string | null, onClose?: () => void): void {
-  const box = el(id);
-  box.hidden = !text;
-  if ((box.dataset.text ?? "") === (text ?? "")) return;
-  box.dataset.text = text ?? "";
-  if (!text) { box.replaceChildren(); return; }
-  const span = document.createElement("span");
-  span.className = "toast-text";
-  span.textContent = text;
-  box.replaceChildren(span);
-  if (onClose) box.appendChild(closeButton(onClose));
-}
-
-const noticeHider = new AutoHide(el("notice-box"));
 
 function renderStatusBar(): void {
   const telemetry = controller.getObservedFirebaseTelemetry();
@@ -346,6 +517,8 @@ function renderStatusBar(): void {
   sheetInit.disabled = busyText !== null;
 }
 
+/** True while an imported file is being read. */
+let readingFile = false;
 let bannerDismissed = false;
 try { bannerDismissed = sessionStorage.getItem("cg-ai-banner-hidden") === "1"; } catch { /* storage may be blocked */ }
 let prevDownloadPct: number | null = null;
@@ -353,7 +526,7 @@ let prevDownloadPct: number | null = null;
 function renderAiBanner(ai: ReturnType<typeof describeDeviceAi>): void {
   const box = el("ai-banner");
   const b = ai.banner;
-  box.hidden = !b || bannerDismissed;
+  box.hidden = !b || b.kind === "downloading" || bannerDismissed;
   if (!b) return;
   box.dataset.kind = b.kind;
   el("ai-banner-title").textContent = b.title;
@@ -371,9 +544,21 @@ function renderAiBanner(ai: ReturnType<typeof describeDeviceAi>): void {
 }
 
 function announceDownload(pct: number | null): void {
-  const msg = downloadAnnouncement(prevDownloadPct, pct, controller.readinessState);
-  if (controller.readinessState === "DOWNLOADING") prevDownloadPct = pct ?? prevDownloadPct;
-  else if (controller.readinessState === "READY_ON_DEVICE" || controller.readinessState !== "CHECKING") prevDownloadPct = null;
+  const state = controller.readinessState;
+  const wasDownloading = prevDownloadPct !== null;
+  const msg = downloadAnnouncement(prevDownloadPct, pct, state);
+  if (state === "DOWNLOADING") prevDownloadPct = pct ?? prevDownloadPct;
+  else if (state === "READY_ON_DEVICE" || state !== "CHECKING") prevDownloadPct = null;
+  // Outside news: progress and the finish line arrive on the notice board from the right.
+  if (state === "DOWNLOADING") {
+    postNotice({
+      key: "ai-download", ext: true, quiet: true, source: "Private AI",
+      text: pct === null ? "Downloading private AI on this device." : `Downloading private AI. ${pct}% done.`,
+      bar: pct ?? "busy",
+    });
+  } else if (state === "READY_ON_DEVICE" && wasDownloading) {
+    postNotice({ key: "ai-download", ext: true, quiet: true, source: "Private AI", text: "Private AI is ready on this device. Download finished.", bar: null });
+  }
   if (msg) announce(msg);
 }
 
@@ -400,6 +585,7 @@ function renderStepper(maxStep: StepNumber): void {
   }
   for (const n of STEPS) el(`panel-${n}`).hidden = advancedOpen || n !== currentStep;
   el("advanced-view").hidden = !advancedOpen;
+  placeNoticeBoard();
   // Every step has the sticky action bar; Advanced settings has none.
   document.documentElement.classList.toggle("no-actionbar", advancedOpen);
   syncActionBarHeight();
@@ -422,17 +608,8 @@ function renderImport(): void {
   const hint = el("import-continue-hint");
   hint.textContent = hasDoc ? "" : "Choose a file first";
   hint.hidden = hasDoc;
-  // While a file is read, the drop area becomes the file card in the same box.
-  const reading = readingName !== null && busyText !== null;
-  const dz = el("dropzone");
-  dz.classList.toggle("is-reading", reading);
-  dz.setAttribute("aria-busy", String(reading));
-  el("dropzone-idle").hidden = reading;
-  el("dropzone-reading").hidden = !reading;
-  if (reading) {
-    el("dropzone-file-name").textContent = readingName;
-    el("dropzone-reading-text").textContent = `Reading ${readingName} on this device…`;
-  }
+  // The drop area never changes shape. Reading progress shows on the notice board.
+  el("dropzone").setAttribute("aria-busy", String(busyText !== null && readingFile));
 }
 
 function renderUnderTheHood(): void {
@@ -458,15 +635,7 @@ function renderUnderTheHood(): void {
 }
 
 function renderBanners(): void {
-  el("busy-banner").hidden = busyText === null || busyInPlace;
-  el("busy-text").textContent = busyText ?? "";
-  setBanner("error-box", errorText, () => { errorText = null; renderBanners(); });
-  const before = el("notice-box").dataset.text ?? "";
-  setBanner("notice-box", noticeText, () => { noticeText = null; renderBanners(); });
-  if ((noticeText ?? "") !== before) {
-    if (noticeText) noticeHider.start(TOAST_MS, () => { noticeText = null; renderBanners(); });
-    else noticeHider.cancel();
-  }
+  syncErrorNotice();
   const warn = el("warnings-box");
   warn.replaceChildren();
   let shown = plainWarnings(controller.warnings);
@@ -691,9 +860,21 @@ function renderReview(): void {
     const n = bulkCount(b.dataset.bulk);
     b.hidden = n === 0;
     const base = b.dataset.bulk === "names" ? "Hide all names" : b.dataset.bulk === "numbers" ? "Hide all numbers and IDs" : "Hide everything on the list";
-    b.textContent = `${base} (${n})`;
+    const title = b.querySelector(".mi-title");
+    if (title) title.textContent = `${base} (${n})`;
   }
   el("btn-review-undo").hidden = undoSnapshot === null;
+
+  // Side panel buttons mirror the bar and the ⋯ pane, and press the real buttons when clicked.
+  const sideAccept = document.querySelector<HTMLButtonElement>("[data-side-accept]")!;
+  sideAccept.hidden = counts.pendingTotal === 0;
+  sideAccept.textContent = `Hide all ${rc.pending} undecided`;
+  setAriaDisabled(sideAccept, isBusy());
+  for (const b of document.querySelectorAll<HTMLButtonElement>("[data-side-bulk]")) {
+    const n = bulkCount(b.dataset.sideBulk);
+    b.hidden = n === 0;
+    setAriaDisabled(b, isBusy());
+  }
 }
 
 /** Renders sanitized text with placeholders highlighted. Uses text nodes only (never innerHTML). */
@@ -768,6 +949,9 @@ function renderApprove(): void {
   analyzeBtn.hidden = !(approved && hybrid);
   const localBtn = el<HTMLButtonElement>("btn-local-triage");
   localBtn.disabled = !idle || !controller.document;
+  for (const side of document.querySelectorAll<HTMLElement>('[data-proxy="btn-local-triage"]')) {
+    setAriaDisabled(side, localBtn.disabled);
+  }
   // The primary button follows the choice: on this device only, the local check is the main action.
   approveBtn.hidden = approveBtn.hidden || !hybrid;
   localBtn.classList.toggle("btn-primary", !hybrid);
@@ -818,46 +1002,38 @@ function approveBlocker(): string | null {
 /** Documents already counted in the on-device tally this session (by document id). */
 const talliedDocs = new Set<string>();
 
-const finishHider = new AutoHide(el("finish-card"));
 /** The findings list the finish message was last shown for, so it appears once per result. */
 let finishShownFor: unknown = null;
 
-function hideFinish(): void {
-  finishHider.cancel();
-  el("finish-card").hidden = true;
-}
-
 function renderFinish(): void {
-  const card = el("finish-card");
   const done = controller.findings.length > 0 && Boolean(controller.document);
   const lede = el("results-lede");
   if (!done) {
     finishShownFor = null;
-    hideFinish();
+    removeNotice("finish");
     lede.textContent = "Real names and numbers are put back on this device only.";
     return;
   }
   const n = ledgerCounts(controller.entities).hiddenTotal;
   const sentToCloud = controller.lastCloudSdkSource === "in_cloud";
-  el("finish-title").textContent = `All done. ${n} detail${n === 1 ? "" : "s"} kept private.`;
-  el("finish-sub").textContent = sentToCloud ? "Only the cleaned text was sent." : "Nothing personal was sent.";
   lede.textContent = finishLede(n, sentToCloud);
   const docId = controller.document!.docId;
   if (currentStep === 4 && !talliedDocs.has(docId)) {
     talliedDocs.add(docId);
     recordTally(n);
   }
-  const pill = el("tally-pill");
-  const t = readTally();
-  pill.hidden = t.docs === 0;
-  pill.textContent = tallyText(t);
-  if (currentStep !== 4) {
-    hideFinish();
-  } else if (finishShownFor !== controller.findings) {
-    // A small happy notification, shown once for this result. It hides itself.
+  if (currentStep === 4 && finishShownFor !== controller.findings) {
+    // One happy notice for this result, with the running total kept on this device.
     finishShownFor = controller.findings;
-    card.hidden = false;
-    finishHider.start(TOAST_MS, () => { card.hidden = true; });
+    const t = readTally();
+    postNotice({
+      key: "finish",
+      source: "Results",
+      testid: "finish-card",
+      text: `All done. ${n} detail${n === 1 ? "" : "s"} kept private.`,
+      sub: [sentToCloud ? "Only the cleaned text was sent." : "Nothing personal was sent.", t.docs > 0 ? tallyText(t) : ""].filter(Boolean).join(" "),
+      subTestid: "tally-pill",
+    });
   }
 }
 
@@ -910,13 +1086,25 @@ function renderResults(): void {
 }
 
 /** Briefly tint the row for a newly added item, and bring it into view on wide screens. */
+/** Scroll a row into view inside the work area only, so the fixed page frame never moves. */
+function scrollIntoWork(node: HTMLElement): void {
+  const work = node.closest<HTMLElement>(".work");
+  if (work && work.scrollHeight > work.clientHeight) {
+    const r = node.getBoundingClientRect();
+    const w = work.getBoundingClientRect();
+    if (r.top < w.top || r.bottom > w.bottom) work.scrollTop += r.top - w.top - (w.height - r.height) / 2;
+  } else {
+    node.scrollIntoView({ block: "nearest" });
+  }
+}
+
 function highlightRow(entityId: string): void {
   const row = Array.from(document.querySelectorAll<HTMLElement>(".entity-card")).find((c) =>
     (c.dataset.entityIds ?? "").split(" ").includes(entityId)
   );
   if (!row) return;
   row.classList.add("is-new");
-  if (window.matchMedia("(min-width: 1024px)").matches) row.scrollIntoView({ block: "nearest" });
+  scrollIntoWork(row);
   window.setTimeout(() => row.classList.remove("is-new"), 3200);
 }
 
@@ -944,10 +1132,19 @@ async function importDocument(
   resetConsent();
   undoSnapshot = null;
   openMoreRows.clear();
-  dismissToasts("undo");
-  readingName = input.fileName || "your document";
-  const ok = await run("Reading your document on this device…", () => controller.ingestFileOrText(input), { inPlace: true });
-  readingName = null;
+  clearNotices();
+  const name = input.fileName || "your document";
+  readingFile = true;
+  const ok = await run(`Reading ${name} on this device…`, () => controller.ingestFileOrText(input), {
+    source: "Import",
+    done: () => {
+      const n = controller.entities.length;
+      return n === 0
+        ? `Finished reading ${name}. No sensitive details were found automatically.`
+        : `Finished reading ${name}. Found ${n} detail${n === 1 ? "" : "s"} to review.`;
+    },
+  });
+  readingFile = false;
   if (ok) goTo(2);
   else renderAll();
 }
@@ -959,23 +1156,23 @@ async function importDocument(
 function wireDisclosure(btn: HTMLElement, panel: HTMLElement, opts: { focusFirst?: boolean } = {}): (returnFocus?: boolean) => void {
   const wrap = btn.parentElement ?? btn;
   const set = (open: boolean, returnFocus = false): void => {
+    const wasOpen = !panel.hidden;
     panel.hidden = !open;
     btn.setAttribute("aria-expanded", String(open));
     if (open && opts.focusFirst) {
       panel.querySelector<HTMLElement>('.menu-item:not([hidden]), [role="radio"][aria-checked="true"]')?.focus();
-    } else if (!open && returnFocus) {
+    } else if (!open && returnFocus && wasOpen) {
       btn.focus();
     }
   };
   btn.addEventListener("click", () => set(panel.hidden));
-  const onKey = (ev: KeyboardEvent): void => {
+  // Esc closes from anywhere and puts focus back on the button that opened it.
+  document.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" && !panel.hidden) {
       ev.preventDefault();
       set(false, true);
     }
-  };
-  panel.addEventListener("keydown", onKey);
-  btn.addEventListener("keydown", onKey);
+  });
   document.addEventListener("click", (ev) => {
     if (!panel.hidden && !wrap.contains(ev.target as Node)) set(false);
   });
@@ -1071,7 +1268,7 @@ async function initUi(): Promise<void> {
   el("btn-init-nano").addEventListener("click", async () => {
     await run("Setting up private AI on this device…", async () => {
       await controller.initializeOnDeviceModel(() => renderAll());
-    });
+    }, { source: "Private AI" });
   });
   for (const id of ["btn-chip-download", "btn-banner-download", "btn-review-download"]) {
     el(id).addEventListener("click", () => el("btn-init-nano").click());
@@ -1085,7 +1282,7 @@ async function initUi(): Promise<void> {
 
   // Review
   el("btn-accept-all").addEventListener("click", () =>
-    reviewChange("All undecided items hidden", () => controller.acceptAllPendingEntities())
+    reviewChange("All undecided items hidden", () => controller.acceptAllPendingEntities(), { notice: true })
   );
 
   // Continue never asks a question. Undecided details are hidden (hiding is always safe), the next
@@ -1116,46 +1313,24 @@ async function initUi(): Promise<void> {
       return;
     }
     goTo(3);
-    showToast({
-      key: "undo",
+    postNotice({
       text: undecidedHiddenText(pendingRows),
-      actionLabel: "Undo",
-      onAction: () => {
-        goTo(2);
-        void reviewChange("Undone", async () => {
-          for (const ent of controller.entities) {
-            const prev = before.get(ent.id);
-            if (prev) ent.reviewStatus = prev;
-          }
-          await controller.toggleEntityStatus([], "ACCEPTED");
-        });
+      source: "Review",
+      action: {
+        label: "Undo",
+        ms: NOTICE_UNDO_MS,
+        run: () => {
+          goTo(2);
+          void reviewChange("Undone", () => restoreStatuses(before));
+        },
       },
     });
   });
-  el("btn-finish-close").addEventListener("click", () => hideFinish());
 
-  // "More actions" menu in the Review bar
+  // "More actions" pane in the Review bar: opens in the bottom-right corner.
   const moreBtn = el<HTMLButtonElement>("btn-review-more");
   const moreMenu = el("review-more-menu");
-  const setMenu = (open: boolean, returnFocus = false): void => {
-    moreMenu.hidden = !open;
-    moreBtn.setAttribute("aria-expanded", String(open));
-    if (open) moreMenu.querySelector<HTMLButtonElement>(".menu-item:not([hidden])")?.focus();
-    else if (returnFocus) moreBtn.focus();
-  };
-  moreBtn.addEventListener("click", () => setMenu(moreMenu.hidden));
-  moreMenu.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape") {
-      ev.preventDefault();
-      setMenu(false, true);
-    }
-  });
-  moreBtn.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape" && !moreMenu.hidden) setMenu(false);
-  });
-  document.addEventListener("click", (ev) => {
-    if (!moreMenu.hidden && !(ev.target as Element).closest(".menu-wrap")) setMenu(false);
-  });
+  const closeMore = wireDisclosure(moreBtn, moreMenu, { focusFirst: true });
   for (const b of moreMenu.querySelectorAll<HTMLButtonElement>("[data-bulk]")) {
     b.addEventListener("click", async () => {
       const kind = b.dataset.bulk;
@@ -1165,40 +1340,43 @@ async function initUi(): Promise<void> {
           : kind === "numbers"
             ? idsToHide(controller.entities, NUMBER_CATEGORIES)
             : idsToHide(controller.entities);
-      setMenu(false, true);
+      closeMore(true);
       if (ids.length === 0) return;
       const what = kind === "names" ? "All names" : kind === "numbers" ? "All numbers and IDs" : "Everything on the list";
-      await reviewChange(`${what} hidden`, () => controller.toggleEntityStatus(ids, "ACCEPTED"));
+      await reviewChange(`${what} hidden`, () => controller.toggleEntityStatus(ids, "ACCEPTED"), { notice: true });
     });
   }
   el("btn-review-undo").addEventListener("click", async () => {
     const snap = undoSnapshot;
-    setMenu(false, true);
+    closeMore(true);
     if (!snap || isBusy()) return;
-    await reviewChange("Last change undone", async () => {
-      for (const ent of controller.entities) {
-        const prev = snap.get(ent.id);
-        if (prev) ent.reviewStatus = prev;
-      }
-      // An empty toggle still invalidates any approval and rebuilds the cleaned text.
-      await controller.toggleEntityStatus([], "ACCEPTED");
-    });
+    await reviewChange("Last change undone", () => restoreStatuses(snap));
     undoSnapshot = null;
     renderAll();
   });
   el("btn-review-add").addEventListener("click", () => {
-    setMenu(false);
+    closeMore();
     const input = el<HTMLInputElement>("manual-surface");
-    input.scrollIntoView({ block: "center" });
     input.focus({ preventScroll: true });
+    scrollIntoWork(input);
   });
+  // Side panel buttons press the real ones. They never open or move focus into the ⋯ pane.
+  document.querySelector<HTMLElement>("[data-side-accept]")!.addEventListener("click", (ev) => {
+    if ((ev.currentTarget as HTMLElement).getAttribute("aria-disabled") === "true") return;
+    el("btn-accept-all").click();
+  });
+  for (const b of document.querySelectorAll<HTMLButtonElement>("[data-side-bulk]")) {
+    b.addEventListener("click", () => {
+      if (b.getAttribute("aria-disabled") === "true") return;
+      moreMenu.querySelector<HTMLButtonElement>(`[data-bulk="${b.dataset.sideBulk}"]`)?.click();
+    });
+  }
   const manualFeedback = el("manual-feedback");
+  // The result goes to the notice board. This element keeps the last text for tests and tools.
   const showManualFeedback = (text: string | null, ok = true): void => {
-    manualFeedback.hidden = !text;
     manualFeedback.textContent = text ?? "";
-    manualFeedback.classList.toggle("is-error", !ok);
+    if (text) postNotice({ text, source: "Review", tone: ok ? undefined : "warn" });
   };
-  el<HTMLInputElement>("manual-surface").addEventListener("input", () => showManualFeedback(null));
   el<HTMLFormElement>("manual-entity-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     if (isBusy()) return;
@@ -1234,7 +1412,6 @@ async function initUi(): Promise<void> {
     if (fb.ok) el<HTMLInputElement>("manual-surface").value = "";
     renderAll();
     if (fb.ok) {
-      announce(fb.text);
       const found = controller.entities.find((e) => e.source === "HUMAN_ADDED" && e.surface === surf);
       if (found) highlightRow(found.id);
     }
@@ -1264,6 +1441,12 @@ async function initUi(): Promise<void> {
     }
     await run("Locking in your approval…", async () => {
       await controller.approveCurrentPayload();
+    }, {
+      source: "Approve",
+      done: () => {
+        const id = approvalId(controller.redaction?.sanitizedSha256);
+        return id ? `Approved. This exact text is locked in. Approval ID ${id}.` : "Approved. This exact text is locked in.";
+      },
     });
   });
   el("btn-analyze-cloud").addEventListener("click", async () => {
@@ -1277,36 +1460,71 @@ async function initUi(): Promise<void> {
       } catch (err) {
         // Keep the status chip honest: after an App Check refusal the cloud is not "protected and ready".
         if (isCloudVerificationError(err)) cloudRefused = true;
+        errorExt = true;
         throw err;
       }
-    });
-    if (ok) goTo(4);
+    }, { source: "Cloud" });
+    if (ok) {
+      const n = controller.findings.length;
+      const real = controller.lastCloudSdkSource === "in_cloud";
+      postNotice({
+        ext: real,
+        source: real ? "Cloud" : "Approve",
+        text: real
+          ? `The deeper check replied with ${n} thing${n === 1 ? "" : "s"} worth a look. Only the cleaned text was sent.`
+          : `The practice run finished on this device with ${n} thing${n === 1 ? "" : "s"} worth a look. Nothing was sent.`,
+      });
+      goTo(4);
+    }
   });
   el("btn-local-triage").addEventListener("click", async () => {
     if (!controller.document) return;
     const doc = controller.document;
     const ok = await run("Checking on this device…", async () => {
       await controller.runOfflineLocalClauseTriage(doc.normalizedText.slice(0, 1200));
-    });
-    if (ok) goTo(4);
+    }, { source: "Approve" });
+    if (ok) {
+      const n = controller.findings.length;
+      postNotice({ source: "Approve", text: `Checked on this device. ${n} thing${n === 1 ? "" : "s"} worth a look. Nothing was sent.` });
+      goTo(4);
+    }
   });
 
   // Results
-  el("btn-export-report").addEventListener("click", () => {
-    // A readable page anyone can open. The raw JSON stays under Advanced settings.
+  el("btn-export-report").addEventListener("click", async () => {
+    // A proper PDF made on this device (counts only, never real values). The raw JSON stays under Advanced settings.
+    const report = controller.getPrivacyReport16();
     const ledger = ledgerCounts(controller.entities);
-    const html = buildReadablePrivacyReport(controller.getPrivacyReport16(), {
-      hiddenItems: ledger.hiddenByCategory.map((c) => ({ label: c.label, category: "" })),
-      hiddenTotal: ledger.hiddenTotal,
-      findingsCount: controller.findings.length,
-    });
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `clauseguard_privacy_report_${controller.sessionId}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const save = (blob: Blob, name: string): void => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    try {
+      const { buildPrivacyReportPdf, pdfFileName, isCloudUsed } = await import("./reportPdf.ts");
+      const bytes = await buildPrivacyReportPdf(report, {
+        hiddenItems: ledger.hiddenByCategory.map((c) => ({ label: categoryLabel(c.category, c.count).replace(/^./, (ch) => ch.toUpperCase()), count: c.count })),
+        hiddenTotal: ledger.hiddenTotal,
+        sentCount: isCloudUsed(report) ? ledger.visibleTotal : 0,
+        findings: controller.findings.map((f) => ({ severity: f.severity, ...plainFinding(f) })),
+        // The file name can itself hold a real name, so the title names the kind of document only.
+        documentTitle: controller.documentProfile?.label
+          ? controller.documentProfile.label.replace(/^./, (ch) => ch.toUpperCase())
+          : undefined,
+      });
+      save(new Blob([bytes as BlobPart], { type: "application/pdf" }), pdfFileName(controller.sessionId));
+    } catch {
+      // If the PDF cannot be made, still give a readable report.
+      const html = buildReadablePrivacyReport(report, {
+        hiddenItems: ledger.hiddenByCategory.map((c) => ({ label: c.label, category: "" })),
+        hiddenTotal: ledger.hiddenTotal,
+        findingsCount: controller.findings.length,
+      });
+      save(new Blob([html], { type: "text/html" }), `clauseguard_privacy_report_${controller.sessionId}.html`);
+    }
   });
   el("btn-new-document").addEventListener("click", () => goTo(1));
 
@@ -1385,6 +1603,9 @@ async function initUi(): Promise<void> {
     el("btn-init-nano").click();
   });
   const closeAppMenu = wireDisclosure(el("btn-app-menu"), el("app-menu"), { focusFirst: true });
+  for (const item of el("app-menu").querySelectorAll<HTMLElement>("a.menu-item")) {
+    item.addEventListener("click", () => closeAppMenu());
+  }
   el("btn-open-advanced").addEventListener("click", () => {
     closeAppMenu();
     setAdvanced(true);
@@ -1403,6 +1624,13 @@ async function initUi(): Promise<void> {
         el<HTMLButtonElement>(item.dataset.proxy ?? "").click();
       });
     }
+  }
+  // Side panel buttons with data-proxy press the real button in the bar.
+  for (const side of document.querySelectorAll<HTMLElement>(".side-panel [data-proxy]")) {
+    side.addEventListener("click", () => {
+      if (side.getAttribute("aria-disabled") === "true") return;
+      el<HTMLButtonElement>(side.dataset.proxy ?? "").click();
+    });
   }
 
   // Import: Continue goes on only once a document is loaded.
@@ -1444,12 +1672,14 @@ async function initUi(): Promise<void> {
     el<HTMLInputElement>("chk-debug-appcheck").checked = false;
     el<HTMLInputElement>("vault-passphrase").value = "";
     if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("CG_LOCALHOST_APPCHECK_DEBUG");
-    const ok = await run("Clearing everything…", () => controller.purgeAllSessionAndStorage());
+    const ok = await run("Clearing everything…", () => controller.purgeAllSessionAndStorage(), { source: "App" });
     if (ok) {
       clearTally();
       talliedDocs.clear();
-      noticeText = "Cleared. Your document, results and saved data are gone from this device.";
+      finishShownFor = null;
+      clearNotices();
       goTo(1, false);
+      postNotice({ source: "App", text: "Cleared. Your document, results and saved data are gone from this device." });
     }
   });
 

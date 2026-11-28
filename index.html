@@ -7,6 +7,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:* http://localhost:* https://firebasevertexai.googleapis.com https://content-firebaseappcheck.googleapis.com https://firebaseappcheck.googleapis.com https://firebaseremoteconfig.googleapis.com https://firebaseinstallations.googleapis.com; frame-src https://www.google.com/recaptcha/; img-src 'self' data:; object-src 'none';" />
   <script src="./theme-boot.js"></script>
   <title>ClauseGuard: read the fine print privately</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./src/ui/styles.css" />
 </head>
 <body>
@@ -17,10 +18,11 @@
     <div class="appbar-inner">
       <div class="brand">
         <svg class="brand-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
-          <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="currentColor" opacity=".16"/>
-          <path d="M16 2.5 5 6.6v8.2c0 6.6 4.3 11.6 11 14.7 6.7-3.1 11-8.1 11-14.7V6.6L16 2.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-          <circle cx="16" cy="13.5" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>
-          <path d="M16 16.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M16 3 26 6.5v8.5c0 6.5-4.25 11-10 14-5.75-3-10-7.5-10-14V6.5Z" fill="currentColor" opacity=".14"/>
+          <path d="M16 3 26 6.5v8.5c0 6.5-4.25 11-10 14-5.75-3-10-7.5-10-14V6.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <rect x="11" y="10.5" width="10" height="2" rx="1" fill="currentColor"/>
+          <rect x="11" y="14.5" width="10" height="2" rx="1" fill="currentColor" opacity=".45"/>
+          <rect x="11" y="18.5" width="6.5" height="2" rx="1" fill="currentColor"/>
         </svg>
         <span class="brand-name">ClauseGuard</span>
       </div>
@@ -85,6 +87,7 @@
           <span aria-hidden="true">&#8943;</span><span class="visually-hidden">Menu</span>
         </button>
         <div id="app-menu" data-testid="app-menu" class="app-menu" role="group" aria-label="Menu" hidden>
+          <div class="pane-title"><span>More actions</span><span class="pane-esc">Esc to close</span></div>
           <div class="menu-theme">
             <span class="menu-label" id="theme-label">Theme</span>
             <div id="theme-choice" class="theme-choice" role="radiogroup" aria-label="Theme" aria-labelledby="theme-label">
@@ -94,9 +97,9 @@
             </div>
             <span data-theme-note class="small muted theme-note"></span>
           </div>
-          <a class="menu-item" href="./guide.html" target="_blank" rel="noopener">Guide<span class="visually-hidden"> (opens in a new tab)</span></a>
-          <button id="btn-open-advanced" data-testid="btn-open-advanced" type="button" class="menu-item">Advanced settings</button>
-          <button id="btn-purge" data-testid="btn-purge" class="menu-item menu-item-danger" type="button">Clear everything</button>
+          <a class="menu-item" href="./guide.html" target="_blank" rel="noopener"><span class="mi-title">Guide<span class="visually-hidden"> (opens in a new tab)</span></span><span class="mi-help">How ClauseGuard works, in plain words</span></a>
+          <button id="btn-open-advanced" data-testid="btn-open-advanced" type="button" class="menu-item"><span class="mi-title">Advanced settings</span><span class="mi-help">Options for developers and testers</span></button>
+          <button id="btn-purge" data-testid="btn-purge" class="menu-item menu-item-danger" type="button"><span class="mi-title">Clear everything</span><span class="mi-help">Removes your document and results from this device</span></button>
         </div>
       </div>
     </div>
@@ -123,47 +126,50 @@
 
     <!-- STEP 1: IMPORT -->
     <section id="panel-1" class="panel" data-panel="1" aria-labelledby="h-1">
-      <div class="title-row">
-        <h1 id="h-1" tabindex="-1">Which document do you want to check?</h1>
-        <p class="lede">It stays on this device while you work. Nothing is uploaded.</p>
+      <div class="work">
+        <div class="title-row">
+          <h1 id="h-1" tabindex="-1">Which document do you want to check?</h1>
+          <p class="lede">It stays on this device while you work. Nothing is uploaded.</p>
+        </div>
+
+        <section id="ai-banner" data-testid="ai-banner" class="ai-banner" aria-labelledby="ai-banner-title" hidden>
+          <div class="ai-banner-text">
+            <h2 id="ai-banner-title" class="ai-banner-title">Get better name detection</h2>
+            <progress id="ai-banner-progress" class="ai-progress" max="100" value="0" aria-label="Private AI download progress" hidden></progress>
+            <p id="ai-banner-body" class="ai-banner-body"></p>
+          </div>
+          <div class="ai-banner-actions">
+            <button id="btn-banner-download" data-testid="btn-banner-download" type="button" class="btn btn-outline">Download private AI</button>
+            <button id="btn-banner-hide" data-testid="btn-banner-hide" type="button" class="btn btn-ghost">Not now</button>
+          </div>
+        </section>
+
+        <label class="dropzone" id="dropzone" for="file-input">
+          <span class="dropzone-idle" id="dropzone-idle">
+            <span class="dropzone-title">Choose a file or drop it here</span>
+            <span class="dropzone-sub">PDF, Word or text file</span>
+            <span class="btn dropzone-btn" aria-hidden="true">Choose a file</span>
+          </span>
+          <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
+        </label>
       </div>
 
-      <section id="ai-banner" data-testid="ai-banner" class="ai-banner" aria-labelledby="ai-banner-title" hidden>
-        <div class="ai-banner-text">
-          <h2 id="ai-banner-title" class="ai-banner-title">Get better name detection</h2>
-          <progress id="ai-banner-progress" class="ai-progress" max="100" value="0" aria-label="Private AI download progress" hidden></progress>
-          <p id="ai-banner-body" class="ai-banner-body"></p>
-        </div>
-        <div class="ai-banner-actions">
-          <button id="btn-banner-download" data-testid="btn-banner-download" type="button" class="btn btn-outline">Download private AI</button>
-          <button id="btn-banner-hide" data-testid="btn-banner-hide" type="button" class="btn btn-ghost">Not now</button>
-        </div>
+      <section class="side-panel" aria-label="Samples and information">
+        <section class="area area-actions" aria-labelledby="samples-title">
+          <span class="zt" aria-hidden="true">Actions</span>
+          <h2 id="samples-title" class="area-title">Or try a sample</h2>
+          <p class="muted small">All samples are made up. Pick one to see how it works.</p>
+          <div class="sample-grid" id="sample-buttons" role="group" aria-label="Sample documents"></div>
+        </section>
+        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
+          <span class="zt" aria-hidden="true">Notice board</span>
+        </section>
+        <section class="area area-info" aria-label="Information">
+          <span class="zt" aria-hidden="true">Information</span>
+          <p class="small" id="file-limits"></p>
+          <p class="small muted">Your file stays on this device. Nothing is uploaded.</p>
+        </section>
       </section>
-
-      <div class="cols cols-7-5">
-        <div class="col-main">
-          <label class="dropzone" id="dropzone" for="file-input">
-            <span class="dropzone-idle" id="dropzone-idle">
-              <span class="dropzone-title">Choose a file or drop it here</span>
-              <span class="dropzone-sub" id="file-limits"></span>
-              <span class="btn btn-outline dropzone-btn" aria-hidden="true">Choose a file</span>
-            </span>
-            <span class="dropzone-reading" id="dropzone-reading" role="status" hidden>
-              <span class="dropzone-file" id="dropzone-file-name"></span>
-              <span class="dropzone-sub" id="dropzone-reading-text">Reading on this device…</span>
-              <span class="calm-bar" aria-hidden="true"><span></span></span>
-            </span>
-            <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
-          </label>
-        </div>
-        <div class="col-side">
-          <section class="box samples-box" aria-labelledby="samples-title">
-            <h2 id="samples-title" class="box-title">Or try a sample</h2>
-            <p class="muted small">All samples are made up. Pick one to see how it works.</p>
-            <div class="sample-grid" id="sample-buttons" role="group" aria-label="Sample documents"></div>
-          </section>
-        </div>
-      </div>
 
       <div id="import-actionbar" data-testid="import-actionbar" class="action-bar" role="region" aria-label="Actions">
         <div class="action-bar-inner">
@@ -176,51 +182,60 @@
 
     <!-- STEP 2: REVIEW -->
     <section id="panel-2" class="panel" data-panel="2" aria-labelledby="h-2" hidden>
-      <div class="title-row">
-        <h1 id="h-2" tabindex="-1">What should stay private?</h1>
-        <p class="lede" id="review-lede">You decide what leaves. Nothing is sent yet.</p>
+      <div class="work">
+        <div class="title-row">
+          <h1 id="h-2" tabindex="-1">What should stay private?</h1>
+          <p class="lede" id="review-lede">You decide what leaves. Nothing is sent yet.</p>
+        </div>
+        <div id="review-empty" class="empty" hidden>
+          <p class="empty-title">No sensitive details were found.</p>
+          <p class="muted">That can be true, but automatic detection can miss things like names. Add any word or phrase you want hidden, or continue.</p>
+        </div>
+        <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
       </div>
 
-      <div class="cols cols-8-4">
-        <div class="col-main">
-          <div id="review-empty" class="empty" hidden>
-            <p class="empty-title">No sensitive details were found.</p>
-            <p class="muted">That can be true, but automatic detection can miss things like names. Add any word or phrase you want hidden, or continue.</p>
+      <section class="side-panel" aria-label="Tools, notices and summary">
+        <form id="manual-entity-form" class="area area-input manual-form" aria-labelledby="manual-title">
+          <span class="zt" aria-hidden="true">Input</span>
+          <h2 id="manual-title" class="area-title">Hide something we missed</h2>
+          <p class="muted small">Type it exactly as it appears. We hide every place it shows up.</p>
+          <div class="field">
+            <label for="manual-surface">Word or phrase</label>
+            <input id="manual-surface" type="text" spellcheck="false" autocomplete="off" placeholder="For example: a person's name" />
           </div>
-          <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
-        </div>
-        <section class="col-side side-sticky" aria-label="Summary and tools">
-          <div class="box review-summary-box">
-            <div id="review-summary" class="summary-chips"></div>
-            <p id="review-fallback-warn" data-testid="review-fallback-warn" class="side-warn" hidden>
-              <span id="review-fallback-text"></span>
-              <button id="btn-review-download" data-testid="btn-review-download" type="button" class="btn btn-small btn-outline" hidden>Download</button>
-            </p>
-            <p class="tip"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people’s names. Add any name below.</p>
+          <div class="field">
+            <label for="manual-category">What is it?</label>
+            <select id="manual-category">
+              <option value="PERSON">Person's name</option>
+              <option value="ORG">Company</option>
+              <option value="ADDRESS">Address</option>
+              <option value="BANK">Bank</option>
+              <option value="CODENAME">Project name</option>
+              <option value="CURRENCY_CAP">Money amount</option>
+            </select>
           </div>
-          <form id="manual-entity-form" class="box manual-form" aria-labelledby="manual-title">
-            <h2 id="manual-title" class="box-title">Hide something we missed</h2>
-            <p class="muted small">Type it exactly as it appears. We hide every place it shows up.</p>
-            <div class="field">
-              <label for="manual-surface">Word or phrase</label>
-              <input id="manual-surface" type="text" spellcheck="false" autocomplete="off" placeholder="For example: a person's name" />
-            </div>
-            <div class="field">
-              <label for="manual-category">What is it?</label>
-              <select id="manual-category">
-                <option value="PERSON">Person's name</option>
-                <option value="ORG">Company</option>
-                <option value="ADDRESS">Address</option>
-                <option value="BANK">Bank</option>
-                <option value="CODENAME">Project name</option>
-                <option value="CURRENCY_CAP">Money amount</option>
-              </select>
-            </div>
-            <button id="btn-add-entity" type="submit" class="btn btn-outline btn-block">Hide it everywhere</button>
-            <p id="manual-feedback" data-testid="manual-feedback" class="manual-feedback" role="status" aria-live="polite" hidden></p>
-          </form>
+          <button id="btn-add-entity" type="submit" class="btn btn-block">Hide it everywhere</button>
+          <p id="manual-feedback" data-testid="manual-feedback" class="manual-feedback" hidden></p>
+        </form>
+        <section class="area area-actions" aria-label="Quick actions">
+          <span class="zt" aria-hidden="true">Actions</span>
+          <button type="button" class="btn side-btn" data-side-accept data-testid="side-hide-all">Hide all undecided</button>
+          <button type="button" class="btn side-btn" data-side-bulk="names" data-testid="side-hide-names">Hide all names</button>
+          <button type="button" class="btn side-btn" data-side-bulk="numbers" data-testid="side-hide-numbers">Hide all numbers and IDs</button>
+          <button id="btn-review-download" data-testid="btn-review-download" type="button" class="btn side-btn" hidden>Download private AI</button>
         </section>
-      </div>
+        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
+          <span class="zt" aria-hidden="true">Notice board</span>
+        </section>
+        <section class="area area-info" aria-label="Information">
+          <span class="zt" aria-hidden="true">Information</span>
+          <div id="review-summary" class="summary-chips"></div>
+          <p id="review-fallback-warn" data-testid="review-fallback-warn" class="side-warn" hidden>
+            <span id="review-fallback-text"></span>
+          </p>
+          <p class="tip"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people’s names. Add any name in the box above.</p>
+        </section>
+      </section>
 
       <!-- Sticky action bar: the same on every step. -->
       <div id="review-actionbar" data-testid="review-actionbar" class="action-bar" role="region" aria-label="Actions">
@@ -233,11 +248,12 @@
                 <span aria-hidden="true">&#8943;</span><span class="visually-hidden">More actions</span>
               </button>
               <div id="review-more-menu" data-testid="review-more-menu" class="action-menu" role="group" aria-label="More actions" hidden>
-                <button type="button" class="menu-item" data-bulk="names" data-testid="bulk-names">Hide all names</button>
-                <button type="button" class="menu-item" data-bulk="numbers" data-testid="bulk-numbers">Hide all numbers and IDs</button>
-                <button type="button" class="menu-item" data-bulk="everything" data-testid="bulk-everything">Hide everything on the list</button>
-                <button type="button" class="menu-item" id="btn-review-undo" data-testid="btn-review-undo">Undo last change</button>
-                <button type="button" class="menu-item" id="btn-review-add" data-testid="btn-review-add">Add something we missed</button>
+                <div class="pane-title"><span>More actions</span><span class="pane-esc">Esc to close</span></div>
+                <button type="button" class="menu-item" data-bulk="names" data-testid="bulk-names"><span class="mi-title">Hide all names</span><span class="mi-help">Hides every person's name on the list</span></button>
+                <button type="button" class="menu-item" data-bulk="numbers" data-testid="bulk-numbers"><span class="mi-title">Hide all numbers and IDs</span><span class="mi-help">Hides numbers, IDs and money amounts</span></button>
+                <button type="button" class="menu-item" data-bulk="everything" data-testid="bulk-everything"><span class="mi-title">Hide everything on the list</span><span class="mi-help">Hides every detail we found</span></button>
+                <button type="button" class="menu-item" id="btn-review-undo" data-testid="btn-review-undo"><span class="mi-title">Undo last change</span><span class="mi-help">Puts back what you just changed</span></button>
+                <button type="button" class="menu-item" id="btn-review-add" data-testid="btn-review-add"><span class="mi-title">Add something we missed</span><span class="mi-help">Takes you to the box for new words</span></button>
               </div>
             </div>
           </div>
@@ -257,29 +273,24 @@
 
     <!-- STEP 3: APPROVE -->
     <section id="panel-3" class="panel" data-panel="3" aria-labelledby="h-3" hidden>
-      <div class="title-row">
-        <h1 id="h-3" tabindex="-1">Is this OK to send?</h1>
-        <p class="lede" id="approve-lede">Read the cleaned text. Your original document never leaves this device.</p>
-      </div>
-
-      <section class="ledger cols cols-7-5" id="ledger" data-testid="ledger" aria-labelledby="ledger-title">
-        <div class="col-main">
+      <div class="work">
+        <div class="title-row">
+          <h1 id="h-3" tabindex="-1">Is this OK to send?</h1>
+          <p class="lede" id="approve-lede">Read the cleaned text. Your original document never leaves this device.</p>
+        </div>
+        <section class="ledger" id="ledger" data-testid="ledger" aria-labelledby="ledger-title">
           <div class="ledger-out">
             <h2 id="ledger-title" class="ledger-heading">Would be sent, exactly as shown</h2>
             <p id="ledger-status" data-testid="ledger-status" class="ledger-status">Nothing has been sent.</p>
             <pre id="sanitized-preview" data-testid="sanitized-preview" class="payload" tabindex="0" aria-label="Exact cleaned text that can be sent" spellcheck="false" translate="no"></pre>
             <p class="muted small" id="payload-size-note"></p>
           </div>
-        </div>
-        <div class="col-side">
-          <div class="box ledger-local">
-            <h2 class="box-title"><span class="lock" aria-hidden="true">&#128274;</span> Stays on this device</h2>
-            <p class="big-number"><span id="count-hidden" data-testid="count-hidden">0</span> <span class="big-label">details hidden</span></p>
-            <ul id="ledger-local-list" class="ledger-list" tabindex="0" aria-label="Hidden details"></ul>
-            <p class="muted small" id="ledger-original-note">Your original document stays in this tab’s memory.</p>
-            <p id="ledger-visible-note" class="ledger-visible" hidden></p>
-          </div>
+        </section>
+      </div>
 
+      <section class="side-panel" aria-label="Choices, notices and details">
+        <section class="area area-input" aria-label="Where the check runs">
+          <span class="zt" aria-hidden="true">Input</span>
           <fieldset class="choice" id="privacy-choice">
             <legend>Where should the deeper check run?</legend>
             <label class="radio-card">
@@ -296,8 +307,7 @@
             <option value="LOCAL_ONLY">Check on this device only. Nothing is sent.</option>
             <option value="HYBRID_ANONYMIZED">Send the cleaned text for a deeper check, after I approve</option>
           </select>
-
-          <div id="consent-box" class="box consent-box" hidden>
+          <div id="consent-box" class="consent-box" hidden>
             <label class="consent-check" for="chk-explicit-consent">
               <input id="chk-explicit-consent" data-testid="chk-explicit-consent" type="checkbox" />
               <span>I read the cleaned text. I approve sending <strong>only this text</strong> for the deeper check.</span>
@@ -305,7 +315,22 @@
             <p id="approval-id-line" class="approval-id" hidden><strong>Approval ID: <span id="approval-id" data-testid="approval-id"></span></strong> <span class="muted">Any change resets this approval</span></p>
           </div>
           <p id="approve-hint" class="approve-hint" aria-live="polite"></p>
-        </div>
+        </section>
+        <section class="area area-actions" aria-label="Quick actions">
+          <span class="zt" aria-hidden="true">Actions</span>
+          <button type="button" class="btn side-btn" data-proxy="btn-local-triage" data-testid="side-local-triage">Check on this device only</button>
+        </section>
+        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
+          <span class="zt" aria-hidden="true">Notice board</span>
+        </section>
+        <section class="area area-info ledger-local" aria-labelledby="ledger-local-title">
+          <span class="zt" aria-hidden="true">Information</span>
+          <h2 id="ledger-local-title" class="area-title"><span class="lock" aria-hidden="true">&#128274;</span> Stays on this device</h2>
+          <p class="big-number"><span id="count-hidden" data-testid="count-hidden">0</span> <span class="big-label">details hidden</span></p>
+          <ul id="ledger-local-list" class="ledger-list" tabindex="0" aria-label="Hidden details"></ul>
+          <p class="muted small" id="ledger-original-note">Your original document stays in this tab’s memory.</p>
+          <p id="ledger-visible-note" class="ledger-visible" hidden></p>
+        </section>
       </section>
 
       <div id="approve-actionbar" data-testid="approve-actionbar" class="action-bar" role="region" aria-label="Actions">
@@ -318,7 +343,8 @@
                 <span aria-hidden="true">&#8943;</span><span class="visually-hidden">More actions</span>
               </button>
               <div id="approve-more-menu" class="action-menu" role="group" aria-label="More actions" hidden>
-                <button type="button" class="menu-item" data-proxy="btn-local-triage">Check on this device only</button>
+                <div class="pane-title"><span>More actions</span><span class="pane-esc">Esc to close</span></div>
+                <button type="button" class="menu-item" data-proxy="btn-local-triage"><span class="mi-title">Check on this device only</span><span class="mi-help">Nothing is sent. Simpler results.</span></button>
               </div>
             </div>
           </div>
@@ -330,23 +356,33 @@
 
     <!-- STEP 4: RESULTS -->
     <section id="panel-4" class="panel" data-panel="4" aria-labelledby="h-4" hidden>
-      <div class="title-row">
-        <h1 id="h-4" tabindex="-1">What should you know?</h1>
-        <p class="lede" id="results-lede">Real names and numbers are put back on this device only.</p>
-      </div>
-      <div class="cols cols-8-4">
-        <div class="col-main">
-          <div id="findings-empty" class="empty">
-            <p class="empty-title">No results yet.</p>
-            <p class="muted">Approve the cleaned text and run the deeper check, or check on this device only.</p>
-          </div>
-          <div id="findings-list" data-testid="findings-list" class="findings-list"></div>
+      <div class="work">
+        <div class="title-row">
+          <h1 id="h-4" tabindex="-1">What should you know?</h1>
+          <p class="lede" id="results-lede">Real names and numbers are put back on this device only.</p>
         </div>
-        <section class="col-side side-sticky" aria-label="About these results">
-          <div id="results-source" class="source-note" hidden></div>
-          <p class="box disclaimer">ClauseGuard points out things worth asking about. It is not legal, medical or money advice and can miss things.</p>
-        </section>
+        <div id="findings-empty" class="empty">
+          <p class="empty-title">No results yet.</p>
+          <p class="muted">Approve the cleaned text and run the deeper check, or check on this device only.</p>
+        </div>
+        <div id="results-source" class="source-note" hidden></div>
+        <div id="findings-list" data-testid="findings-list" class="findings-list"></div>
       </div>
+
+      <section class="side-panel" aria-label="Actions, notices and information">
+        <section class="area area-actions" aria-label="Quick actions">
+          <span class="zt" aria-hidden="true">Actions</span>
+          <button type="button" class="btn side-btn" data-proxy="btn-export-report" data-testid="side-export-report">Download privacy report</button>
+          <button type="button" class="btn side-btn" data-proxy="btn-new-document" data-testid="side-new-document">Check another document</button>
+        </section>
+        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
+          <span class="zt" aria-hidden="true">Notice board</span>
+        </section>
+        <section class="area area-info" aria-label="Information">
+          <span class="zt" aria-hidden="true">Information</span>
+          <p class="disclaimer small">ClauseGuard points out things worth asking about. It is not legal, medical or money advice and can miss things.</p>
+        </section>
+      </section>
 
       <div id="results-actionbar" data-testid="results-actionbar" class="action-bar" role="region" aria-label="Actions">
         <div class="action-bar-inner">
@@ -358,7 +394,8 @@
                 <span aria-hidden="true">&#8943;</span><span class="visually-hidden">More actions</span>
               </button>
               <div id="results-more-menu" class="action-menu" role="group" aria-label="More actions" hidden>
-                <button type="button" class="menu-item" data-proxy="btn-export-report">Download privacy report</button>
+                <div class="pane-title"><span>More actions</span><span class="pane-esc">Esc to close</span></div>
+                <button type="button" class="menu-item" data-proxy="btn-export-report"><span class="mi-title">Download privacy report</span><span class="mi-help">A report you can save and share</span></button>
               </div>
             </div>
           </div>
@@ -456,24 +493,9 @@
     </section>
   </main>
 
-  <!-- One calm notification area, bottom right (above the action bar on phones). -->
-  <div id="toast-region" class="toast-region" aria-live="polite">
-    <div id="busy-banner" class="toast toast-busy" role="status" hidden>
-      <span class="spinner" aria-hidden="true"></span><span id="busy-text">Working…</span>
-    </div>
-    <div id="error-box" data-testid="error-box" class="toast toast-error" role="alert" hidden></div>
-    <div id="notice-box" data-testid="notice-box" class="toast" role="status" hidden></div>
-    <section id="finish-card" data-testid="finish-card" class="toast toast-finish" aria-labelledby="finish-title" hidden>
-      <span class="finish-check" aria-hidden="true">
-        <svg viewBox="0 0 48 48" width="32" height="32" focusable="false"><circle cx="24" cy="24" r="24" class="finish-disc"/><path d="M14 25l7 7 13-15" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" class="finish-tick"/></svg>
-      </span>
-      <div class="finish-body">
-        <h2 id="finish-title" class="finish-title">All done.</h2>
-        <p id="finish-sub" class="finish-sub">Nothing personal was sent.</p>
-        <p id="tally-pill" data-testid="tally-pill" class="tally-pill" hidden></p>
-      </div>
-      <button id="btn-finish-close" type="button" class="toast-close" aria-label="Close this message"><span aria-hidden="true">&times;</span></button>
-    </section>
+  <!-- The notice board. Moved into the current step's panel on desktop; one floating note on phones. -->
+  <div id="toast-region" class="toast-region notice-board" tabindex="0" role="log" aria-live="polite" aria-relevant="additions" aria-label="Notices">
+    <div id="error-box" data-testid="error-box" class="notice notice-error" role="alert" hidden></div>
   </div>
 
   <footer class="site-footer">
