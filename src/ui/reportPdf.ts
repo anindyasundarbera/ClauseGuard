@@ -7,6 +7,8 @@ export interface PdfReportOptions {
   sentCount: number;
   findings: { severity: "HIGH" | "MEDIUM" | "LOW"; title: string; message: string }[];
   documentTitle?: string;
+  /** "dark" draws the report in the app's dusk colours. Default "light". */
+  theme?: "light" | "dark";
 }
 
 const REPLACEMENTS: Record<string, string> = {
@@ -52,18 +54,46 @@ const CW = PAGE_W - 2 * M;
 const FOOT_Y = 30;
 const BOTTOM = 62;
 
-const ACCENT = rgb(0x3f / 255, 0x7a / 255, 0x70 / 255);
-const INK = rgb(0x2a / 255, 0x34 / 255, 0x33 / 255);
-const MUTED = rgb(0x6b / 255, 0x75 / 255, 0x73 / 255);
-const RULE = rgb(0xe4 / 255, 0xe1 / 255, 0xd8 / 255);
-const SOFT = rgb(0xef / 255, 0xf5 / 255, 0xf2 / 255);
 const hex = (h: string) =>
   rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
-const PILL = {
-  HIGH: { label: "High", bg: hex("#F7E1DC"), fg: hex("#8A3B2B") },
-  MEDIUM: { label: "Medium", bg: hex("#FBF1DE"), fg: hex("#7A5216") },
-  LOW: { label: "Low", bg: hex("#E3EEEA"), fg: hex("#2D5E56") },
+
+/** Report colours for each app theme. Light is the daylight look, dark the dusk look. */
+export const PDF_PALETTES = {
+  light: {
+    bg: null as string | null, accent: "#3F7A70", ink: "#2A3433", muted: "#6B7573", rule: "#E4E1D8", soft: "#EFF5F2",
+    onAccent: "#FFFFFF", quiet: "#808080",
+    pill: { HIGH: ["#F7E1DC", "#8A3B2B"], MEDIUM: ["#FBF1DE", "#7A5216"], LOW: ["#E3EEEA", "#2D5E56"] },
+  },
+  dark: {
+    bg: "#23211E" as string | null, accent: "#7FAFA2", ink: "#ECE7DD", muted: "#B5AEA1", rule: "#44413A", soft: "#33413C",
+    onAccent: "#23211E", quiet: "#9A9488",
+    pill: { HIGH: ["#4A2E28", "#F0B8AA"], MEDIUM: ["#4A3D24", "#E9CB8F"], LOW: ["#2F3F3A", "#BFDCD3"] },
+  },
 } as const;
+
+let ACCENT = hex(PDF_PALETTES.light.accent);
+let INK = hex(PDF_PALETTES.light.ink);
+let MUTED = hex(PDF_PALETTES.light.muted);
+let RULE = hex(PDF_PALETTES.light.rule);
+let SOFT = hex(PDF_PALETTES.light.soft);
+let ON_ACCENT = hex(PDF_PALETTES.light.onAccent);
+let QUIET = hex(PDF_PALETTES.light.quiet);
+let PAGE_BG: ReturnType<typeof hex> | null = null;
+const makePill = (t: "light" | "dark") => {
+  const pl = PDF_PALETTES[t].pill;
+  return {
+    HIGH: { label: "High", bg: hex(pl.HIGH[0]), fg: hex(pl.HIGH[1]) },
+    MEDIUM: { label: "Medium", bg: hex(pl.MEDIUM[0]), fg: hex(pl.MEDIUM[1]) },
+    LOW: { label: "Low", bg: hex(pl.LOW[0]), fg: hex(pl.LOW[1]) },
+  };
+};
+let PILL = makePill("light");
+const usePalette = (t: "light" | "dark") => {
+  const pl = PDF_PALETTES[t];
+  ACCENT = hex(pl.accent); INK = hex(pl.ink); MUTED = hex(pl.muted); RULE = hex(pl.rule); SOFT = hex(pl.soft);
+  ON_ACCENT = hex(pl.onAccent); QUIET = hex(pl.quiet); PAGE_BG = pl.bg ? hex(pl.bg) : null; PILL = makePill(t);
+};
+
 
 /** Wraps text to a width; breaks over-long words by character. */
 export function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
@@ -172,6 +202,7 @@ export async function buildPrivacyReportPdf(
   report: PrivacyProcessingAndEgressReport16,
   opts: PdfReportOptions,
 ): Promise<Uint8Array> {
+  usePalette(opts.theme === "dark" ? "dark" : "light");
   const doc = await PDFDocument.create();
   doc.setTitle("ClauseGuard privacy report");
   doc.setAuthor("ClauseGuard");
@@ -187,6 +218,7 @@ export async function buildPrivacyReportPdf(
   let y = 0;
   const newPage = () => {
     page = doc.addPage([PAGE_W, PAGE_H]);
+    if (PAGE_BG) page.drawRectangle({ x: 0, y: 0, width: PAGE_W, height: PAGE_H, color: PAGE_BG });
     pages.push(page);
     y = PAGE_H - M;
   };
@@ -229,7 +261,7 @@ export async function buildPrivacyReportPdf(
   const sx = M, sy = y - 20;
   page.drawSvgPath("M 0 0 L 16 0 L 16 9 C 16 17 8 21 8 22 C 8 21 0 17 0 9 Z", { x: sx, y: sy + 22, color: ACCENT });
   for (const [yy, w] of [[16, 8], [12.5, 8], [9, 5.5]] as const) {
-    page.drawLine({ start: { x: sx + 4, y: sy + yy }, end: { x: sx + 4 + w, y: sy + yy }, thickness: 1.6, color: rgb(1, 1, 1), opacity: yy === 12.5 ? 0.55 : 1 });
+    page.drawLine({ start: { x: sx + 4, y: sy + yy }, end: { x: sx + 4 + w, y: sy + yy }, thickness: 1.6, color: ON_ACCENT, opacity: yy === 12.5 ? 0.55 : 1 });
   }
   text("ClauseGuard privacy report", sx + 24, sy + 7, bold, 12, ACCENT);
   rightText(formatDate(report.generated_at_utc), M + CW, sy + 12, regular, 9, MUTED);
@@ -373,7 +405,7 @@ export async function buildPrivacyReportPdf(
   drawParagraph("Document fingerprint (SHA-256):", regular, 9, MUTED, 0, 1);
   drawParagraph(report.raw_document_sha256, mono, 8.5, INK, 0, 8);
 
-  const grey = rgb(0.5, 0.5, 0.5);
+  const grey = QUIET;
   const list = (label: string, items: string[]) => {
     drawParagraph(label, bold, 8.5, grey, 0, 1);
     if (items.length === 0) drawParagraph("None.", regular, 8, grey);

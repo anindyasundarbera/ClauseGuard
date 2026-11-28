@@ -334,7 +334,7 @@ export function furthestStep(hasDocument: boolean, hasFindings: boolean): StepNu
 }
 
 export const STEP_TITLES: Record<StepNumber, string> = {
-  1: "Import",
+  1: "Start",
   2: "Review",
   3: "Approve",
   4: "Results",

@@ -86,7 +86,7 @@ You get a list of things worth asking about, such as a clause that cancels anoth
 
 Each finding says where it was checked: **Checked in the cloud**, **Checked on this device** or **Practice run**.
 
-- **Download privacy report** saves a two-page PDF report, made on your device. It shows how many details were hidden and of what kind, what was sent, where the check ran and what it found, with a ClauseGuard seal. It contains counts and fingerprints (hashes), never your names or numbers. The raw JSON version is under **Advanced settings**.
+- **Download privacy report** saves a two-page PDF report, made on your device. It shows how many details were hidden and of what kind, what was sent, where the check ran and what it found, with a ClauseGuard seal. It uses the same light or dark look as the app; the Results ⋯ pane also offers a Light report (good for printing) and a Dark report. It contains counts and fingerprints (hashes), never your names or numbers. The raw JSON version is under **Advanced settings**.
 - **Check another document** starts over.
 - **Clear everything** is in the **⋯** menu at the top. It removes your document, results and any saved data from this device.
 

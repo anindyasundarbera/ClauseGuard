@@ -29,12 +29,12 @@
 
       <nav class="appbar-steps" aria-label="Progress">
         <ol class="stepper" id="stepper">
-          <li><button type="button" class="step" data-step="1" data-testid="step-1"><span class="step-num" aria-hidden="true">1</span><span class="step-label">Import</span></button></li>
+          <li><button type="button" class="step" data-step="1" data-testid="step-1"><span class="step-num" aria-hidden="true">1</span><span class="step-label">Start</span></button></li>
           <li><button type="button" class="step" data-step="2" data-testid="step-2"><span class="step-num" aria-hidden="true">2</span><span class="step-label">Review</span></button></li>
           <li><button type="button" class="step" data-step="3" data-testid="step-3"><span class="step-num" aria-hidden="true">3</span><span class="step-label">Approve</span></button></li>
           <li><button type="button" class="step" data-step="4" data-testid="step-4"><span class="step-num" aria-hidden="true">4</span><span class="step-label">Results</span></button></li>
         </ol>
-        <p id="step-compact" class="step-compact">Step 1 of 4 · Import</p>
+        <p id="step-compact" class="step-compact">Step 1 of 4 · Start</p>
         <div class="step-progress" aria-hidden="true">
           <span data-seg="1"></span><span data-seg="2"></span><span data-seg="3"></span><span data-seg="4"></span>
         </div>
@@ -124,7 +124,7 @@
     <!-- One polite region for Review outcomes ("Hidden. 7 left to decide."), never for activity. -->
     <div id="review-announcer" data-testid="review-announcer" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- STEP 1: IMPORT -->
+    <!-- STEP 1: START -->
     <section id="panel-1" class="panel" data-panel="1" aria-labelledby="h-1">
       <div class="work">
         <div class="title-row">
@@ -144,34 +144,61 @@
           </div>
         </section>
 
-        <label class="dropzone" id="dropzone" for="file-input">
-          <span class="dropzone-idle" id="dropzone-idle">
-            <span class="dropzone-title">Choose a file or drop it here</span>
-            <span class="dropzone-sub">PDF, Word or text file</span>
-            <span class="btn dropzone-btn" aria-hidden="true">Choose a file</span>
-          </span>
-          <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
-        </label>
+        <section class="dash" aria-labelledby="dash-so-far">
+          <h2 id="dash-so-far" class="dash-h">On this device so far</h2>
+          <div class="dash-cards">
+            <div class="dash-card">
+              <p class="dash-num" id="tally-details" data-testid="tally-details">0</p>
+              <p class="dash-label">details kept private</p>
+              <p class="dash-sub" id="tally-docs">across 0 documents</p>
+            </div>
+            <div class="dash-card">
+              <p class="dash-num" id="sent-details" data-testid="sent-details">0</p>
+              <p class="dash-label">personal details sent</p>
+              <p class="dash-sub">since you started</p>
+            </div>
+          </div>
+        </section>
+        <section class="dash" aria-labelledby="dash-how">
+          <h2 id="dash-how" class="dash-h">How it works</h2>
+          <ol class="dash-cards dash-cards-3">
+            <li class="dash-card"><p class="dash-label"><strong>1 Add a file</strong></p><p class="dash-sub">Use the drop box, or try a sample.</p></li>
+            <li class="dash-card"><p class="dash-label"><strong>2 Choose what to hide</strong></p><p class="dash-sub">Names and numbers are found for you.</p></li>
+            <li class="dash-card"><p class="dash-label"><strong>3 Read the results</strong></p><p class="dash-sub">Nothing personal leaves this device.</p></li>
+          </ol>
+        </section>
+        <p class="dash-note">Not stored. ClauseGuard keeps only the counts above, never your documents.</p>
       </div>
 
-      <section class="side-panel" aria-label="Samples and information">
-        <section class="area area-actions" aria-labelledby="samples-title">
-          <span class="zt" aria-hidden="true">Actions</span>
-          <h2 id="samples-title" class="area-title">Or try a sample</h2>
-          <p class="muted small">All samples are made up. Pick one to see how it works.</p>
+      <section class="side-panel" aria-label="Side panel">
+        <section class="area area-notice" aria-labelledby="h-notice-1" data-notice-slot>
+          <h2 id="h-notice-1" class="visually-hidden">Notices</h2>
+        </section>
+        <section class="area area-actions" aria-labelledby="h-actions-1">
+          <h2 id="h-actions-1" class="visually-hidden">Actions</h2>
           <div class="sample-grid" id="sample-buttons" role="group" aria-label="Sample documents"></div>
         </section>
-        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
-          <span class="zt" aria-hidden="true">Notice board</span>
-        </section>
-        <section class="area area-info" aria-label="Information">
-          <span class="zt" aria-hidden="true">Information</span>
-          <p class="small" id="file-limits"></p>
-          <p class="small muted">Your file stays on this device. Nothing is uploaded.</p>
+        <section id="doc-strip" class="area area-doc" aria-labelledby="h-doc-strip">
+          <h2 id="h-doc-strip" class="visually-hidden">Document</h2>
+          <label class="dropzone" id="dropzone" for="file-input">
+            <span class="dropzone-idle" id="dropzone-idle">
+              <svg class="ico dz-ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M4 6.500 8 2.500l4 4"/></svg>
+              <span class="dropzone-title">Drop a file here</span>
+              <span class="dropzone-sub">PDF, Word or text &middot; up to 50 pages</span>
+              <span class="btn dropzone-btn" aria-hidden="true">Choose a file</span>
+            </span>
+            <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
+          </label>
+          <div id="doc-chip" class="doc-chip" hidden>
+            <svg class="ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.500h5.500L12.500 4.500v10H4Z"/><path d="M9 1.500v3.500h3.500"/></svg>
+            <button id="btn-doc-name" data-testid="btn-doc-name" type="button" class="doc-name" aria-haspopup="true"></button>
+            <span id="doc-pages" class="doc-pages"></span>
+            <button id="btn-doc-remove" data-testid="btn-doc-remove" type="button" class="doc-x" aria-label="Remove document"><span aria-hidden="true">&#10005;</span></button>
+          </div>
         </section>
       </section>
 
-      <div id="import-actionbar" data-testid="import-actionbar" class="action-bar" role="region" aria-label="Actions">
+      <div id="import-actionbar" data-testid="import-actionbar" class="action-bar" role="group" aria-label="Next step">
         <div class="action-bar-inner">
           <span class="action-back action-slot" aria-hidden="true"></span>
           <p id="import-continue-hint" class="action-hint">Choose a file first</p>
@@ -194,55 +221,49 @@
         <div id="airlock-list" data-testid="airlock-list" class="airlock-list" spellcheck="false" translate="no"></div>
       </div>
 
-      <section class="side-panel" aria-label="Tools, notices and summary">
-        <form id="manual-entity-form" class="area area-input manual-form" aria-labelledby="manual-title">
-          <span class="zt" aria-hidden="true">Input</span>
-          <h2 id="manual-title" class="area-title">Hide something we missed</h2>
-          <p class="muted small">Type it exactly as it appears. We hide every place it shows up.</p>
-          <div class="field">
-            <label for="manual-surface">Word or phrase</label>
-            <input id="manual-surface" type="text" spellcheck="false" autocomplete="off" placeholder="For example: a person's name" />
-          </div>
-          <div class="field">
-            <label for="manual-category">What is it?</label>
-            <select id="manual-category">
-              <option value="PERSON">Person's name</option>
-              <option value="ORG">Company</option>
-              <option value="ADDRESS">Address</option>
-              <option value="BANK">Bank</option>
-              <option value="CODENAME">Project name</option>
-              <option value="CURRENCY_CAP">Money amount</option>
-            </select>
-          </div>
-          <button id="btn-add-entity" type="submit" class="btn btn-block">Hide it everywhere</button>
-          <p id="manual-feedback" data-testid="manual-feedback" class="manual-feedback" hidden></p>
-        </form>
-        <section class="area area-actions" aria-label="Quick actions">
-          <span class="zt" aria-hidden="true">Actions</span>
-          <button type="button" class="btn side-btn" data-side-accept data-testid="side-hide-all">Hide all undecided</button>
-          <button type="button" class="btn side-btn" data-side-bulk="names" data-testid="side-hide-names">Hide all names</button>
-          <button type="button" class="btn side-btn" data-side-bulk="numbers" data-testid="side-hide-numbers">Hide all numbers and IDs</button>
-          <button id="btn-review-download" data-testid="btn-review-download" type="button" class="btn side-btn" hidden>Download private AI</button>
+      <section class="side-panel" aria-label="Side panel">
+        <section class="area area-notice" aria-labelledby="h-notice-2" data-notice-slot>
+          <h2 id="h-notice-2" class="visually-hidden">Notices</h2>
         </section>
-        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
-          <span class="zt" aria-hidden="true">Notice board</span>
-        </section>
-        <section class="area area-info" aria-label="Information">
-          <span class="zt" aria-hidden="true">Information</span>
-          <div id="review-summary" class="summary-chips"></div>
-          <p id="review-fallback-warn" data-testid="review-fallback-warn" class="side-warn" hidden>
-            <span id="review-fallback-text"></span>
-          </p>
-          <p class="tip"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people’s names. Add any name in the box above.</p>
+        <section class="area area-actions" aria-labelledby="h-actions-2">
+          <h2 id="h-actions-2" class="visually-hidden">Actions</h2>
+          <form id="manual-entity-form" class="manual-form" aria-labelledby="manual-title">
+            <h3 id="manual-title" class="area-title">Hide something we missed</h3>
+            <div class="manual-row">
+              <div class="field">
+                <label for="manual-surface">Word or phrase</label>
+                <input id="manual-surface" type="text" spellcheck="false" autocomplete="off" placeholder="For example: a name" />
+              </div>
+              <div class="field">
+                <label for="manual-category">What is it?</label>
+                <select id="manual-category">
+                  <option value="PERSON">Person's name</option>
+                  <option value="ORG">Company</option>
+                  <option value="ADDRESS">Address</option>
+                  <option value="BANK">Bank</option>
+                  <option value="CODENAME">Project name</option>
+                  <option value="CURRENCY_CAP">Money amount</option>
+                </select>
+              </div>
+            </div>
+            <button id="btn-add-entity" type="submit" class="btn btn-block">Hide it everywhere</button>
+            <p id="manual-feedback" data-testid="manual-feedback" class="manual-feedback" hidden></p>
+          </form>
+          <div class="badge-row" role="group" aria-label="Quick actions">
+            <button id="btn-accept-all" data-testid="btn-accept-all" type="button" class="badge"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4Z"/><path d="M3 13 13 3"/></svg><span id="accept-all-label">Hide undecided</span></button>
+            <button type="button" class="badge" data-side-bulk="names" data-testid="side-hide-names"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13.5c.5-3 2.500-4 5-4s4.500 1 5 4"/></svg><span>Hide names</span></button>
+            <button type="button" class="badge" data-side-bulk="numbers" data-testid="side-hide-numbers"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 5 14M11 2l-1 12M2.500 6h11.500M2 10h11.500"/></svg><span>Hide numbers</span></button>
+            <button id="btn-review-download" data-testid="btn-review-download" type="button" class="badge" hidden><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M4.500 7 8 10.500 11.500 7M3 13.500h10"/></svg><span>Private AI</span><span class="visually-hidden"> (download)</span></button>
+            <button type="button" class="badge" data-open-doc data-testid="btn-view-document-badge" aria-haspopup="true"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.3-4.5 6.5-4.5S14.5 8 14.5 8 12.200 12.500 8 12.500 1.500 8 1.500 8Z"/><circle cx="8" cy="8" r="1.8"/></svg><span>View document</span></button>
+          </div>
         </section>
       </section>
 
-      <!-- Sticky action bar: the same on every step. -->
-      <div id="review-actionbar" data-testid="review-actionbar" class="action-bar" role="region" aria-label="Actions">
+      <!-- The step buttons float at the bottom right of the work area. -->
+      <div id="review-actionbar" data-testid="review-actionbar" class="action-bar" role="group" aria-label="Next step">
         <div class="action-bar-inner">
-          <button type="button" class="btn btn-ghost action-back" data-go="1"><span aria-hidden="true">&#8249; </span>Back</button>
+          <button type="button" class="btn btn-outline action-back" data-go="1"><span aria-hidden="true">&#8249; </span>Back</button>
           <div class="action-bulk">
-            <button id="btn-accept-all" data-testid="btn-accept-all" type="button" class="btn btn-outline action-hide-all">Hide all</button>
             <div class="menu-wrap">
               <button id="btn-review-more" data-testid="btn-review-more" type="button" class="btn btn-outline btn-icon" aria-expanded="false" aria-controls="review-more-menu">
                 <span aria-hidden="true">&#8943;</span><span class="visually-hidden">More actions</span>
@@ -288,9 +309,12 @@
         </section>
       </div>
 
-      <section class="side-panel" aria-label="Choices, notices and details">
-        <section class="area area-input" aria-label="Where the check runs">
-          <span class="zt" aria-hidden="true">Input</span>
+      <section class="side-panel" aria-label="Side panel">
+        <section class="area area-notice" aria-labelledby="h-notice-3" data-notice-slot>
+          <h2 id="h-notice-3" class="visually-hidden">Notices</h2>
+        </section>
+        <section class="area area-actions" aria-labelledby="h-actions-3">
+          <h2 id="h-actions-3" class="visually-hidden">Actions</h2>
           <fieldset class="choice" id="privacy-choice">
             <legend>Where should the deeper check run?</legend>
             <label class="radio-card">
@@ -315,27 +339,16 @@
             <p id="approval-id-line" class="approval-id" hidden><strong>Approval ID: <span id="approval-id" data-testid="approval-id"></span></strong> <span class="muted">Any change resets this approval</span></p>
           </div>
           <p id="approve-hint" class="approve-hint" aria-live="polite"></p>
-        </section>
-        <section class="area area-actions" aria-label="Quick actions">
-          <span class="zt" aria-hidden="true">Actions</span>
-          <button type="button" class="btn side-btn" data-proxy="btn-local-triage" data-testid="side-local-triage">Check on this device only</button>
-        </section>
-        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
-          <span class="zt" aria-hidden="true">Notice board</span>
-        </section>
-        <section class="area area-info ledger-local" aria-labelledby="ledger-local-title">
-          <span class="zt" aria-hidden="true">Information</span>
-          <h2 id="ledger-local-title" class="area-title"><span class="lock" aria-hidden="true">&#128274;</span> Stays on this device</h2>
-          <p class="big-number"><span id="count-hidden" data-testid="count-hidden">0</span> <span class="big-label">details hidden</span></p>
-          <ul id="ledger-local-list" class="ledger-list" tabindex="0" aria-label="Hidden details"></ul>
-          <p class="muted small" id="ledger-original-note">Your original document stays in this tab’s memory.</p>
-          <p id="ledger-visible-note" class="ledger-visible" hidden></p>
+          <div class="badge-row" role="group" aria-label="Quick actions">
+            <button type="button" class="badge" data-proxy="btn-local-triage" data-testid="side-local-triage"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.500 6.500 12 13 4.500"/></svg><span>Check on this device</span></button>
+            <button type="button" class="badge" data-open-doc data-testid="btn-view-document-badge" aria-haspopup="true"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.3-4.5 6.5-4.5S14.5 8 14.5 8 12.200 12.500 8 12.500 1.500 8 1.500 8Z"/><circle cx="8" cy="8" r="1.8"/></svg><span>View document</span></button>
+          </div>
         </section>
       </section>
 
-      <div id="approve-actionbar" data-testid="approve-actionbar" class="action-bar" role="region" aria-label="Actions">
+      <div id="approve-actionbar" data-testid="approve-actionbar" class="action-bar" role="group" aria-label="Next step">
         <div class="action-bar-inner">
-          <button type="button" class="btn btn-ghost action-back" data-go="2"><span aria-hidden="true">&#8249; </span>Back</button>
+          <button type="button" class="btn btn-outline action-back" data-go="2"><span aria-hidden="true">&#8249; </span>Back</button>
           <div class="action-bulk">
             <button id="btn-local-triage" data-testid="btn-local-triage" class="btn btn-outline action-secondary" type="button" disabled>Check on this device only</button>
             <div class="menu-wrap action-more">
@@ -369,38 +382,63 @@
         <div id="findings-list" data-testid="findings-list" class="findings-list"></div>
       </div>
 
-      <section class="side-panel" aria-label="Actions, notices and information">
-        <section class="area area-actions" aria-label="Quick actions">
-          <span class="zt" aria-hidden="true">Actions</span>
-          <button type="button" class="btn side-btn" data-proxy="btn-export-report" data-testid="side-export-report">Download privacy report</button>
-          <button type="button" class="btn side-btn" data-proxy="btn-new-document" data-testid="side-new-document">Check another document</button>
+      <section class="side-panel" aria-label="Side panel">
+        <section class="area area-notice" aria-labelledby="h-notice-4" data-notice-slot>
+          <h2 id="h-notice-4" class="visually-hidden">Notices</h2>
         </section>
-        <section class="area area-notice" aria-label="Notice board" data-notice-slot>
-          <span class="zt" aria-hidden="true">Notice board</span>
-        </section>
-        <section class="area area-info" aria-label="Information">
-          <span class="zt" aria-hidden="true">Information</span>
-          <p class="disclaimer small">ClauseGuard points out things worth asking about. It is not legal, medical or money advice and can miss things.</p>
+        <section class="area area-actions" aria-labelledby="h-actions-4">
+          <h2 id="h-actions-4" class="visually-hidden">Actions</h2>
+          <div class="badge-row" role="group" aria-label="Quick actions">
+            <button id="btn-export-report" data-testid="btn-export-report" type="button" class="badge"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5.500L12.500 5v9H4Z"/><path d="M9 2v3.500h3.500M6 8.500h4.500M6 11h4.500"/></svg><span>Download privacy report</span></button>
+            <button type="button" class="badge" data-proxy="btn-new-document" data-testid="side-new-document"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.500-3.500M13 2.500v3h-3"/></svg><span>Check another document</span></button>
+            <button type="button" class="badge" data-open-doc data-testid="btn-view-document-badge" aria-haspopup="true"><svg class="ico" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.3-4.5 6.5-4.5S14.5 8 14.5 8 12.200 12.500 8 12.500 1.500 8 1.500 8Z"/><circle cx="8" cy="8" r="1.8"/></svg><span>View document</span></button>
+          </div>
         </section>
       </section>
 
-      <div id="results-actionbar" data-testid="results-actionbar" class="action-bar" role="region" aria-label="Actions">
+      <div id="results-actionbar" data-testid="results-actionbar" class="action-bar" role="group" aria-label="Next step">
         <div class="action-bar-inner">
-          <button type="button" class="btn btn-ghost action-back" data-go="3"><span aria-hidden="true">&#8249; </span>Back</button>
+          <button type="button" class="btn btn-outline action-back" data-go="3"><span aria-hidden="true">&#8249; </span>Back</button>
           <div class="action-bulk">
-            <button id="btn-export-report" data-testid="btn-export-report" type="button" class="btn btn-outline action-secondary">Download privacy report</button>
             <div class="menu-wrap action-more">
               <button id="btn-results-more" data-testid="btn-results-more" type="button" class="btn btn-outline btn-icon" aria-expanded="false" aria-controls="results-more-menu">
                 <span aria-hidden="true">&#8943;</span><span class="visually-hidden">More actions</span>
               </button>
               <div id="results-more-menu" class="action-menu" role="group" aria-label="More actions" hidden>
                 <div class="pane-title"><span>More actions</span><span class="pane-esc">Esc to close</span></div>
-                <button type="button" class="menu-item" data-proxy="btn-export-report"><span class="mi-title">Download privacy report</span><span class="mi-help">A report you can save and share</span></button>
+                <button type="button" class="menu-item" data-proxy="btn-export-report" data-report-theme="light"><span class="mi-title">Light report</span><span class="mi-help">White pages, good for printing</span></button>
+                <button type="button" class="menu-item" data-proxy="btn-export-report" data-report-theme="dark"><span class="mi-title">Dark report</span><span class="mi-help">Dark pages, easy on the eyes on screen</span></button>
               </div>
             </div>
           </div>
           <button id="btn-new-document" data-testid="btn-new-document" type="button" class="btn btn-primary action-main">Check another document</button>
         </div>
+      </div>
+    </section>
+
+    <!-- DOCUMENT VIEW: swaps in for the work area of the current step. -->
+    <section id="doc-view" class="docview" aria-labelledby="dv-title" hidden>
+      <div class="dv-head">
+        <div class="dv-titlebar">
+          <svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.500 8s2.300-4.500 6.500-4.500S14.500 8 14.500 8 12.200 12.500 8 12.500 1.500 8 1.500 8Z"/><circle cx="8" cy="8" r="1.800"/></svg>
+          <h1 id="dv-title" class="dv-title" tabindex="-1"></h1>
+          <button id="btn-doc-close" data-testid="btn-doc-close" type="button" class="btn btn-outline dv-close">Close <span aria-hidden="true">&#10005;</span></button>
+        </div>
+        <div class="dv-toggle" role="group" aria-label="What to show">
+          <button id="btn-dv-original" data-testid="btn-dv-original" type="button" aria-pressed="true">Original</button>
+          <button id="btn-dv-sent" data-testid="btn-dv-sent" type="button" aria-pressed="false">What would be sent</button>
+        </div>
+        <p id="dv-legend" class="dv-legend"></p>
+        <div id="dv-selbar" class="dv-selbar" hidden>
+          <span id="dv-selbar-text" class="dv-selbar-text"></span>
+          <button id="btn-dv-hide-sel" data-testid="btn-dv-hide-sel" type="button" class="btn btn-small">Hide this</button>
+        </div>
+      </div>
+      <div id="dv-body" class="dv-body" tabindex="0" role="region" aria-label="Document text" spellcheck="false" translate="no"></div>
+      <div id="dv-pop" class="dv-pop" role="group" aria-label="Detail" hidden>
+        <p id="dv-pop-type" class="dv-pop-type"></p>
+        <p id="dv-pop-state" class="dv-pop-state"></p>
+        <button id="btn-dv-pop-action" data-testid="btn-dv-pop-action" type="button" class="btn btn-small"></button>
       </div>
     </section>
 
@@ -495,6 +533,30 @@
 
   <!-- The notice board. Moved into the current step's panel on desktop; one floating note on phones. -->
   <div id="toast-region" class="toast-region notice-board" tabindex="0" role="log" aria-live="polite" aria-relevant="additions" aria-label="Notices">
+    <div class="notice notice-info" data-info="1" aria-live="off">
+      <span class="info-tag">Info</span>
+      <p id="file-limits" class="info-text"></p>
+      <p class="info-text">Your file stays on this device. Nothing is uploaded.</p>
+    </div>
+    <div class="notice notice-info" data-info="2" aria-live="off" hidden>
+      <span class="info-tag">Info</span>
+      <div id="review-summary" class="summary-chips"></div>
+      <p id="review-fallback-warn" data-testid="review-fallback-warn" class="side-warn" hidden>
+        <span id="review-fallback-text"></span>
+      </p>
+      <p class="info-text"><strong>Tip:</strong> Automatic detection is good at numbers and emails but can miss people&rsquo;s names. Add any name in the box on this panel.</p>
+    </div>
+    <div class="notice notice-info ledger-local" data-info="3" aria-live="off" hidden>
+      <span class="info-tag">Info</span>
+      <p class="info-text"><span class="lock" aria-hidden="true">&#128274;</span> <strong>Stays on this device:</strong> <span id="count-hidden" data-testid="count-hidden">0</span> <span>details hidden</span></p>
+      <ul id="ledger-local-list" class="ledger-list" tabindex="0" aria-label="Hidden details"></ul>
+      <p class="info-text" id="ledger-original-note">Your original document stays in this tab&rsquo;s memory.</p>
+      <p id="ledger-visible-note" class="ledger-visible" hidden></p>
+    </div>
+    <div class="notice notice-info" data-info="4" aria-live="off" hidden>
+      <span class="info-tag">Info</span>
+      <p class="disclaimer info-text">ClauseGuard points out things worth asking about. It is not legal, medical or money advice and can miss things.</p>
+    </div>
     <div id="error-box" data-testid="error-box" class="notice notice-error" role="alert" hidden></div>
   </div>
 

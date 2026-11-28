@@ -12,6 +12,7 @@ import type {
 import { buildSamples } from "./samples.ts";
 import { initThemeControls } from "./theme.ts";
 import { clearTally, readTally, recordTally, tallyText } from "./tally.ts";
+import { buildDocSegments, docHeaderText, markAction, markStateText, type MarkState } from "./docView.ts";
 import {
   detectionNote,
   groupForReview,
@@ -22,6 +23,7 @@ import {
   finishLede,
   manualAddFeedback,
   undecidedHiddenText,
+  capitalize,
   categoryLabel,
   describeCloud,
   isCloudVerificationError,
@@ -61,6 +63,8 @@ const ROLES: ContractRole[] = [
 ];
 
 let currentStep: StepNumber = 1;
+/** Set by the Light report or Dark report choice; otherwise the report follows the app theme. */
+let pendingReportTheme: "light" | "dark" | null = null;
 let busyText: string | null = null;
 let errorText: string | null = null;
 /** True when the error came from the cloud check, so it slides in from the right as outside news. */
@@ -141,7 +145,7 @@ interface NoticeOpts {
   /** "busy" is a sliding bar, a number is a percentage. */
   bar?: "busy" | number | null;
   /** A button inside the notice that goes away after `ms`. The notice stays. */
-  action?: { label: string; ms: number; run: () => void };
+  action?: { label: string; ms: number; run: () => void; onExpire?: () => void };
   onClose?: () => void;
   /** Progress notices stay silent on update; their milestones are spoken elsewhere. */
   quiet?: boolean;
@@ -219,7 +223,7 @@ function fillNotice(n: HTMLElement, o: NoticeOpts): void {
   time.textContent = noticeTime();
   foot.append(time);
   if (o.action) {
-    const { label, ms, run: act } = o.action;
+    const { label, ms, run: act, onExpire } = o.action;
     // Only the newest Undo is real; older ones would put back stale choices.
     for (const old of noticeBoard().querySelectorAll(".notice-action")) old.remove();
     const btn = document.createElement("button");
@@ -236,7 +240,7 @@ function fillNotice(n: HTMLElement, o: NoticeOpts): void {
       hider = new AutoHide(n);
       noticeHiders.set(n, hider);
     }
-    hider.start(ms, () => btn.remove());
+    hider.start(ms, () => { btn.remove(); onExpire?.(); });
   }
   if (o.onClose) {
     const close = document.createElement("button");
@@ -273,7 +277,7 @@ function postNotice(o: NoticeOpts): HTMLElement {
     if (o.key) n.dataset.nkey = o.key;
     n.addEventListener("animationend", () => n!.classList.add("is-settled"));
     b.appendChild(n);
-    const all = b.querySelectorAll(".notice:not([hidden])");
+    const all = b.querySelectorAll(".notice:not([hidden]):not(.notice-info)");
     if (all.length > NOTICE_MAX) all[0].remove();
   }
   fillNotice(n, o);
@@ -287,7 +291,7 @@ function removeNotice(key: string): void {
 
 /** A new document is a new session: start the board fresh. */
 function clearNotices(): void {
-  for (const n of noticeBoard().querySelectorAll(".notice:not(#error-box)")) n.remove();
+  for (const n of noticeBoard().querySelectorAll(".notice:not(#error-box):not(.notice-info)")) n.remove();
 }
 
 function stripUndo(): void {
@@ -324,12 +328,19 @@ function syncErrorNotice(): void {
 
 /** Put the board in the current step's side panel (desktop) so it always sits in the same place. */
 function placeNoticeBoard(): void {
-  const slot = document.getElementById(`panel-${currentStep}`)?.querySelector<HTMLElement>("[data-notice-slot]");
+  const panel = document.getElementById(`panel-${currentStep}`);
+  const slot = panel?.querySelector<HTMLElement>("[data-notice-slot]");
   const b = noticeBoard();
   if (slot && b.parentElement !== slot) {
     slot.appendChild(b);
     scrollBoardToNewest();
   }
+  // The document strip is one element that sits at the very bottom of the current step's panel.
+  const side = panel?.querySelector<HTMLElement>(".side-panel");
+  const strip = el("doc-strip");
+  if (side && strip.parentElement !== side) side.appendChild(strip);
+  // Info notes: only the current step's note shows. They update in place.
+  for (const n of b.querySelectorAll<HTMLElement>("[data-info]")) n.hidden = n.dataset.info !== String(currentStep);
 }
 
 /** aria-disabled keeps a button focusable and in the Tab order, so it can explain itself. */
@@ -444,6 +455,7 @@ function resetConsent(): void {
 
 function goTo(step: StepNumber, focus = true): void {
   if (step === 4) stripUndo();
+  docViewOpen = false;
   currentStep = step;
   advancedOpen = false;
   renderAll();
@@ -591,17 +603,35 @@ function renderStepper(maxStep: StepNumber): void {
   syncActionBarHeight();
 }
 
-/** Keep scroll padding and page padding equal to the real height of the visible action bar. */
+/** Keep the sticky app bar height in a variable so the page frame fits under it. */
 function syncActionBarHeight(): void {
   const top = document.querySelector<HTMLElement>(".appbar")?.getBoundingClientRect().height ?? 0;
   if (top > 0) document.documentElement.style.setProperty("--appbar-live", `${Math.ceil(top)}px`);
-  const bar = advancedOpen ? null : el(`panel-${currentStep}`).querySelector<HTMLElement>(".action-bar");
-  const h = bar ? bar.getBoundingClientRect().height : 0;
-  if (h > 0) document.documentElement.style.setProperty("--actionbar-h", `${Math.ceil(h)}px`);
+}
+
+/** Details sent to the cloud since this page opened (memory only). */
+let sessionSent = 0;
+
+function renderDocStrip(): void {
+  const doc = controller.document;
+  el("dropzone").hidden = Boolean(doc);
+  const chip = el("doc-chip");
+  chip.hidden = !doc;
+  chip.classList.toggle("is-open", docViewOpen && Boolean(doc));
+  if (!doc) return;
+  const name = el("btn-doc-name");
+  name.textContent = doc.fileName;
+  name.title = `Open ${doc.fileName} in the document view`;
+  el("doc-pages").textContent = doc.pageCount > 1 ? `${doc.pageCount} pages` : "";
 }
 
 function renderImport(): void {
   el("file-limits").textContent = FILE_LIMITS_TEXT;
+  const t = readTally();
+  el("tally-details").textContent = String(t.details);
+  el("tally-docs").textContent = `across ${t.docs} document${t.docs === 1 ? "" : "s"}`;
+  el("sent-details").textContent = String(sessionSent);
+  renderDocStrip();
   const hasDoc = Boolean(controller.document);
   const btn = el<HTMLButtonElement>("btn-import-continue");
   setAriaDisabled(btn, !hasDoc || busyText !== null);
@@ -641,7 +671,8 @@ function renderBanners(): void {
   let shown = plainWarnings(controller.warnings);
   // On Review the side panel already carries the built-in-rules warning, so do not say it twice.
   // After Review the warning ("double-check the list in Review") no longer helps, so drop it there too.
-  if ((currentStep === 2 && fallbackReviewWarning(controller.readinessState)) || currentStep > 2) {
+  const wide = typeof window.matchMedia === "function" && window.matchMedia("(min-width: 1024px)").matches;
+  if ((wide && currentStep === 2 && fallbackReviewWarning(controller.readinessState)) || currentStep > 2) {
     shown = shown.filter((w) => !w.startsWith("Private AI wasn't available for this document"));
   }
   warn.hidden = shown.length === 0;
@@ -665,7 +696,7 @@ function renderBanners(): void {
 }
 
 function renderSamples(): void {
-  for (const b of document.querySelectorAll<HTMLButtonElement>(".sample")) {
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-testid^="sample-"]')) {
     b.disabled = busyText !== null;
   }
 }
@@ -724,7 +755,7 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
       );
     return b;
   };
-  seg.append(mk("Hide", "ACCEPTED", "accept"), mk("Show", "REJECTED", "reject"));
+  seg.append(mk("Show", "REJECTED", "reject"), mk("Hide", "ACCEPTED", "accept"));
 
   const more = document.createElement("details");
   more.className = "entity-more";
@@ -840,13 +871,7 @@ function renderReview(): void {
   acceptAll.hidden = counts.pendingTotal === 0;
   setAriaDisabled(acceptAll, isBusy());
   // The count is always shown so the effect is clear before pressing.
-  acceptAll.replaceChildren(
-    document.createTextNode(`Hide all ${rc.pending}`),
-    Object.assign(document.createElement("span"), {
-      className: "visually-hidden",
-      textContent: ` item${rc.pending === 1 ? "" : "s"} that need a choice`,
-    })
-  );
+  el("accept-all-label").textContent = `Hide ${rc.pending} undecided`;
   // Continue is never a dead control: with items undecided it explains and offers a safe way on.
   setAriaDisabled(cont, !hasDoc || isBusy());
 
@@ -866,10 +891,6 @@ function renderReview(): void {
   el("btn-review-undo").hidden = undoSnapshot === null;
 
   // Side panel buttons mirror the bar and the ⋯ pane, and press the real buttons when clicked.
-  const sideAccept = document.querySelector<HTMLButtonElement>("[data-side-accept]")!;
-  sideAccept.hidden = counts.pendingTotal === 0;
-  sideAccept.textContent = `Hide all ${rc.pending} undecided`;
-  setAriaDisabled(sideAccept, isBusy());
   for (const b of document.querySelectorAll<HTMLButtonElement>("[data-side-bulk]")) {
     const n = bulkCount(b.dataset.sideBulk);
     b.hidden = n === 0;
@@ -1120,6 +1141,7 @@ function renderAll(): void {
   renderReview();
   renderApprove();
   renderResults();
+  renderDocView();
   renderUnderTheHood();
   const init = el<HTMLButtonElement>("btn-init-nano");
   init.disabled = busyText !== null;
@@ -1133,6 +1155,8 @@ async function importDocument(
   undoSnapshot = null;
   openMoreRows.clear();
   clearNotices();
+  lastImport = input;
+  pendingRestore = null;
   const name = input.fileName || "your document";
   readingFile = true;
   const ok = await run(`Reading ${name} on this device…`, () => controller.ingestFileOrText(input), {
@@ -1190,6 +1214,361 @@ function setAdvanced(open: boolean): void {
   }
 }
 
+/* ---------- Document strip: remove with Undo ---------- */
+type ImportInput = Parameters<ClauseGuardSessionController["ingestFileOrText"]>[0];
+/** The last imported file or text, kept in memory only so "Undo" after removing can read it again. */
+let lastImport: ImportInput | null = null;
+let pendingRestore: { input: ImportInput; statuses: Map<string, DetectedEntity["reviewStatus"]>; step: StepNumber } | null = null;
+
+/** Removing the document clears the session like "Clear everything", with no dialog and an Undo for 8 seconds. */
+async function removeDocument(): Promise<void> {
+  const doc = controller.document;
+  if (!doc || isBusy()) return;
+  const name = doc.fileName;
+  const restore = lastImport
+    ? { input: lastImport, statuses: new Map(controller.entities.map((e) => [e.id, e.reviewStatus] as const)), step: currentStep }
+    : null;
+  docViewOpen = false;
+  resetConsent();
+  const ok = await run("Removing your document…", () => controller.purgeAllSessionAndStorage(), { source: "App", done: () => null });
+  if (!ok) return;
+  lastImport = null;
+  undoSnapshot = null;
+  finishShownFor = null;
+  openMoreRows.clear();
+  clearNotices();
+  pendingRestore = restore;
+  goTo(1, false);
+  postNotice({
+    key: "removed",
+    source: "App",
+    text: `Removed ${name}.`,
+    action: restore
+      ? {
+          label: "Undo",
+          ms: NOTICE_UNDO_MS,
+          run: () => void undoRemove(),
+          onExpire: () => { if (pendingRestore === restore) pendingRestore = null; },
+        }
+      : undefined,
+  });
+  el("file-input").focus({ preventScroll: true });
+}
+
+async function undoRemove(): Promise<void> {
+  const r = pendingRestore;
+  pendingRestore = null;
+  if (!r || isBusy()) return;
+  await importDocument(r.input);
+  if (!controller.document) return;
+  try {
+    await restoreStatuses(r.statuses);
+  } catch (err) {
+    errorText = friendlyError(err);
+  }
+  renderAll();
+  if (r.step >= 3) goTo(3);
+  postNotice({ source: "App", text: `Put back ${controller.document.fileName}.` });
+}
+
+function wireDocStrip(): void {
+  el("btn-doc-remove").addEventListener("click", () => void removeDocument());
+  el("btn-doc-name").addEventListener("click", (ev) => openDocView(ev.currentTarget as HTMLElement));
+  for (const b of document.querySelectorAll<HTMLElement>("[data-open-doc]")) {
+    b.addEventListener("click", () => openDocView(b));
+  }
+}
+
+/* ---------- Document view ---------- */
+let docViewOpen = false;
+let dvMode: "original" | "sent" = "original";
+let dvOpener: HTMLElement | null = null;
+let dvPopEntity: string | null = null;
+let dvSig = "";
+let dvSelText = "";
+
+function openDocView(opener: HTMLElement | null): void {
+  if (!controller.document) return;
+  dvOpener = opener;
+  dvMode = "original";
+  dvSig = "";
+  dvPopEntity = null;
+  docViewOpen = true;
+  renderAll();
+  const body = el("dv-body");
+  body.scrollTop = 0;
+  el("dv-title").focus({ preventScroll: true });
+}
+
+function closeDocView(): void {
+  if (!docViewOpen) return;
+  docViewOpen = false;
+  dvPopEntity = null;
+  hideDvPop();
+  renderAll();
+  const target = isShown(dvOpener) && dvOpener.isConnected ? dvOpener : el("btn-doc-name");
+  if (isShown(target)) target.focus({ preventScroll: true });
+  else el(`h-${currentStep}`).focus({ preventScroll: true });
+  dvOpener = null;
+}
+
+function hideDvPop(): void {
+  const pop = el("dv-pop");
+  pop.hidden = true;
+  for (const m of document.querySelectorAll(".mk[aria-expanded='true']")) m.setAttribute("aria-expanded", "false");
+}
+
+/** The review row (all places a value appears) that holds one found detail. */
+function groupOfEntity(entityId: string): DetectedEntity[] | null {
+  for (const rows of groupForReview(controller.entities).values()) {
+    for (const row of rows) if (row.some((e) => e.id === entityId)) return row;
+  }
+  return null;
+}
+
+function groupState(group: DetectedEntity[]): MarkState {
+  if (group.some((g) => g.reviewStatus === "PENDING_REVIEW" || g.reviewStatus === "NEEDS_DECISION")) return "undecided";
+  return group.every((g) => g.reviewStatus === "ACCEPTED") ? "hidden" : "shown";
+}
+
+const STATE_SUFFIX: Record<MarkState, string> = { hidden: " (hidden)", undecided: " (needs a choice)", shown: " (kept visible)" };
+
+function currentDocPage(): number {
+  const body = el("dv-body");
+  const top = body.getBoundingClientRect().top + 60;
+  let page = 1;
+  for (const p of body.querySelectorAll<HTMLElement>(".dv-page")) {
+    if (p.getBoundingClientRect().top <= top) page = Number(p.dataset.page) || page;
+    else break;
+  }
+  return page;
+}
+
+function renderDocTitle(): void {
+  const doc = controller.document;
+  if (!doc) return;
+  const page = dvMode === "original" ? currentDocPage() : 1;
+  el("dv-title").textContent = docHeaderText(doc.fileName, page, dvMode === "original" ? doc.pageCount : 1);
+}
+
+function renderDocView(): void {
+  const view = el("doc-view");
+  const doc = controller.document;
+  const panel = document.getElementById(`panel-${currentStep}`);
+  for (const p of document.querySelectorAll(".panel.is-viewing")) p.classList.remove("is-viewing");
+  const phone = typeof window.matchMedia === "function" && !window.matchMedia("(min-width: 1024px)").matches;
+  const setInert = (on: boolean): void => {
+    for (const sel of [".appbar", ".side-panel", ".action-bar"]) {
+      for (const n of document.querySelectorAll<HTMLElement>(sel)) n.inert = on;
+    }
+  };
+  if (!docViewOpen || !doc || !panel || advancedOpen) {
+    view.hidden = true;
+    setInert(false);
+    return;
+  }
+  if (view.parentElement !== panel) panel.insertBefore(view, panel.querySelector(".side-panel"));
+  view.hidden = false;
+  panel.classList.add("is-viewing");
+  setInert(phone);
+
+  el("btn-dv-original").setAttribute("aria-pressed", String(dvMode === "original"));
+  el("btn-dv-sent").setAttribute("aria-pressed", String(dvMode === "sent"));
+
+  const canEdit = currentStep === 2;
+  const ents = controller.entities;
+  const sig = [dvMode, canEdit, doc.docId, controller.redaction?.sanitizedSha256 ?? "", ents.map((e) => `${e.id}:${e.reviewStatus}`).join(",")].join("|");
+  if (sig !== dvSig) {
+    dvSig = sig;
+    hideDvPop();
+    const text = document.createElement("div");
+    text.className = "dv-text";
+    if (dvMode === "original") {
+      const pageStarts = doc.sourceMap.map((s) => ({ normStart: s.normStart, page: s.page }));
+      for (const seg of buildDocSegments(doc.normalizedText, ents, pageStarts)) {
+        if (seg.kind === "text") {
+          text.appendChild(document.createTextNode(seg.text));
+        } else if (seg.kind === "page") {
+          const pg = document.createElement("span");
+          pg.className = "dv-page";
+          pg.dataset.page = String(seg.page);
+          pg.textContent = `Page ${seg.page}`;
+          text.appendChild(pg);
+        } else {
+          const group = groupOfEntity(seg.entityId);
+          const state = group ? groupState(group) : seg.state;
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = `mk mk-${state}`;
+          b.dataset.eid = seg.entityId;
+          b.setAttribute("aria-haspopup", "true");
+          b.setAttribute("aria-expanded", "false");
+          b.append(document.createTextNode(seg.text));
+          const sr = document.createElement("span");
+          sr.className = "visually-hidden";
+          sr.textContent = STATE_SUFFIX[state];
+          b.appendChild(sr);
+          text.appendChild(b);
+        }
+      }
+    } else {
+      const sent = controller.redaction?.sanitizedText;
+      if (!sent) {
+        text.textContent = "Nothing to show yet.";
+      } else {
+        for (const seg of splitPlaceholders(sent)) {
+          if (seg.placeholder) {
+            const m = document.createElement("mark");
+            m.textContent = seg.text;
+            text.appendChild(m);
+          } else {
+            text.appendChild(document.createTextNode(seg.text));
+          }
+        }
+      }
+    }
+    el("dv-body").replaceChildren(text);
+  }
+
+  // The legend says the same thing as the colours, in words.
+  const legend = el("dv-legend");
+  const lgSig = `${dvMode}-${canEdit}`;
+  if (legend.dataset.sig !== lgSig) {
+    legend.dataset.sig = lgSig;
+    if (dvMode === "original") {
+      const mk = (cls: string, word: string, rest: string): HTMLElement => {
+        const s = document.createElement("span");
+        const w = document.createElement("span");
+        w.className = cls;
+        w.textContent = word;
+        s.append(w, ` ${rest}`);
+        return s;
+      };
+      legend.replaceChildren(
+        mk("lg-hidden", "Hidden", "will be hidden"),
+        mk("lg-undecided", "Needs a choice", "not decided yet"),
+        document.createTextNode(canEdit ? "Select text to hide more." : "To change a choice, go back to Review.")
+      );
+    } else {
+      legend.textContent = "This is the exact cleaned text that can be sent. Placeholders stand in for hidden details. Nothing is sent from here.";
+    }
+  }
+  if (dvMode !== "original" || !canEdit) el("dv-selbar").hidden = true;
+  renderDocTitle();
+}
+
+function showDvPop(btn: HTMLElement): void {
+  const eid = btn.dataset.eid ?? "";
+  const group = groupOfEntity(eid);
+  if (!group) return;
+  hideDvPop();
+  dvPopEntity = eid;
+  btn.setAttribute("aria-expanded", "true");
+  const ent = group[0];
+  const state = groupState(group);
+  const pop = el("dv-pop");
+  el("dv-pop-type").textContent = capitalize(categoryLabel(ent.category));
+  const canEdit = currentStep === 2;
+  el("dv-pop-state").textContent = canEdit ? markStateText(state) : `${markStateText(state)} To change it, go back to Review.`;
+  const act = el<HTMLButtonElement>("btn-dv-pop-action");
+  act.hidden = !canEdit;
+  const action = markAction(state);
+  act.textContent = action.label;
+  act.dataset.status = action.status;
+  pop.hidden = false;
+  const view = el("doc-view").getBoundingClientRect();
+  const r = btn.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const h = pop.offsetHeight;
+  const left = Math.max(8, Math.min(r.left - view.left, view.width - w - 8));
+  let top = r.bottom - view.top + 6;
+  if (top + h > view.height - 8) top = Math.max(8, r.top - view.top - h - 6);
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+  (canEdit ? act : pop).focus({ preventScroll: true });
+}
+
+function closeDvPop(returnFocus: boolean): void {
+  const eid = dvPopEntity;
+  dvPopEntity = null;
+  hideDvPop();
+  if (returnFocus && eid) document.querySelector<HTMLElement>(`.mk[data-eid="${CSS.escape(eid)}"]`)?.focus({ preventScroll: true });
+}
+
+function updateSelectionBar(): void {
+  const bar = el("dv-selbar");
+  const body = el("dv-body");
+  if (!docViewOpen || dvMode !== "original" || currentStep !== 2) { bar.hidden = true; return; }
+  const sel = window.getSelection();
+  const text = sel && !sel.isCollapsed && sel.anchorNode && body.contains(sel.anchorNode) && body.contains(sel.focusNode) ? sel.toString().trim() : "";
+  if (text && text.length <= 80) {
+    dvSelText = text;
+    el("dv-selbar-text").textContent = `Selected: “${text}”`;
+    bar.hidden = false;
+  } else if (!bar.contains(document.activeElement)) {
+    bar.hidden = true;
+  }
+}
+
+function wireDocView(): void {
+  el("btn-doc-close").addEventListener("click", () => closeDocView());
+  const setMode = (m: "original" | "sent"): void => {
+    dvMode = m;
+    dvSig = "";
+    renderAll();
+    el("dv-body").scrollTop = 0;
+  };
+  el("btn-dv-original").addEventListener("click", () => setMode("original"));
+  el("btn-dv-sent").addEventListener("click", () => setMode("sent"));
+  const body = el("dv-body");
+  body.addEventListener("scroll", () => renderDocTitle(), { passive: true });
+  body.addEventListener("click", (ev) => {
+    const mk = (ev.target as Element).closest<HTMLElement>(".mk[data-eid]");
+    if (!mk) return;
+    if (mk.getAttribute("aria-expanded") === "true") closeDvPop(false);
+    else showDvPop(mk);
+  });
+  el("btn-dv-pop-action").addEventListener("click", async () => {
+    const eid = dvPopEntity;
+    const status = el("btn-dv-pop-action").dataset.status as "ACCEPTED" | "REJECTED" | undefined;
+    const group = eid ? groupOfEntity(eid) : null;
+    if (!eid || !status || !group) return;
+    const ids = group.map((g) => g.id);
+    const surface = group[0].surface;
+    hideDvPop();
+    dvPopEntity = null;
+    // The same decision the Hide and Show buttons in the list make.
+    await reviewChange(status === "ACCEPTED" ? `${surface} hidden` : `${surface} kept visible`, () => controller.toggleEntityStatus(ids, status));
+    document.querySelector<HTMLElement>(`.mk[data-eid="${CSS.escape(eid)}"]`)?.focus({ preventScroll: true });
+  });
+  document.addEventListener("click", (ev) => {
+    if (el("dv-pop").hidden) return;
+    const t = ev.target as Element;
+    if (!el("dv-pop").contains(t) && !t.closest(".mk")) closeDvPop(false);
+  });
+  document.addEventListener("selectionchange", updateSelectionBar);
+  el("btn-dv-hide-sel").addEventListener("mousedown", (ev) => ev.preventDefault());
+  el("btn-dv-hide-sel").addEventListener("click", () => {
+    if (!dvSelText) return;
+    el<HTMLInputElement>("manual-surface").value = dvSelText;
+    dvSelText = "";
+    window.getSelection()?.removeAllRanges();
+    el("dv-selbar").hidden = true;
+    el<HTMLFormElement>("manual-entity-form").requestSubmit();
+  });
+  // Esc closes the pop first, then the view. Menus handle their own Esc earlier and mark it handled.
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape" || ev.defaultPrevented) return;
+    if (!el("dv-pop").hidden) {
+      ev.preventDefault();
+      closeDvPop(true);
+    } else if (docViewOpen) {
+      ev.preventDefault();
+      closeDocView();
+    }
+  });
+}
+
 async function initUi(): Promise<void> {
   const fbJsonBox = el<HTMLTextAreaElement>("firebase-config-json");
   if (!fbJsonBox.value.trim()) {
@@ -1214,18 +1593,21 @@ async function initUi(): Promise<void> {
   for (const smp of buildSamples()) {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "sample";
     b.setAttribute("data-testid", smp.id);
-    const tag = document.createElement("span");
-    tag.className = "sample-tag";
-    tag.textContent = smp.audience === "everyone" ? "Everyday" : "Professional";
+    b.className = "badge";
     const t = document.createElement("span");
     t.className = "sample-title";
-    t.textContent = smp.title;
+    t.textContent = smp.short;
+    const tag = document.createElement("span");
+    tag.className = "badge-tag";
+    tag.textContent = smp.tag;
     const d = document.createElement("span");
-    d.className = "sample-blurb";
-    d.textContent = smp.blurb;
-    b.append(tag, t, d);
+    d.className = "visually-hidden";
+    d.id = `desc-${smp.id}`;
+    d.textContent = `${smp.title}. ${smp.blurb}`;
+    b.title = `${smp.title}. ${smp.blurb}`;
+    b.setAttribute("aria-describedby", d.id);
+    b.append(t, " ", tag, d);
     b.onclick = () => importDocument({ fileName: smp.fileName, mimeType: "text/plain", text: smp.text });
     grid.appendChild(b);
   }
@@ -1361,10 +1743,6 @@ async function initUi(): Promise<void> {
     scrollIntoWork(input);
   });
   // Side panel buttons press the real ones. They never open or move focus into the ⋯ pane.
-  document.querySelector<HTMLElement>("[data-side-accept]")!.addEventListener("click", (ev) => {
-    if ((ev.currentTarget as HTMLElement).getAttribute("aria-disabled") === "true") return;
-    el("btn-accept-all").click();
-  });
   for (const b of document.querySelectorAll<HTMLButtonElement>("[data-side-bulk]")) {
     b.addEventListener("click", () => {
       if (b.getAttribute("aria-disabled") === "true") return;
@@ -1467,6 +1845,7 @@ async function initUi(): Promise<void> {
     if (ok) {
       const n = controller.findings.length;
       const real = controller.lastCloudSdkSource === "in_cloud";
+      if (real) sessionSent += ledgerCounts(controller.entities).visibleTotal;
       postNotice({
         ext: real,
         source: real ? "Cloud" : "Approve",
@@ -1491,7 +1870,15 @@ async function initUi(): Promise<void> {
   });
 
   // Results
+  // The report follows the app theme unless a Light or Dark report choice in the ⋯ pane asked for one.
+  const currentTheme = (): "light" | "dark" => {
+    const set = document.documentElement.getAttribute("data-theme");
+    if (set === "light" || set === "dark") return set;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  };
   el("btn-export-report").addEventListener("click", async () => {
+    const theme = pendingReportTheme ?? currentTheme();
+    pendingReportTheme = null;
     // A proper PDF made on this device (counts only, never real values). The raw JSON stays under Advanced settings.
     const report = controller.getPrivacyReport16();
     const ledger = ledgerCounts(controller.entities);
@@ -1514,6 +1901,7 @@ async function initUi(): Promise<void> {
         documentTitle: controller.documentProfile?.label
           ? controller.documentProfile.label.replace(/^./, (ch) => ch.toUpperCase())
           : undefined,
+        theme,
       });
       save(new Blob([bytes as BlobPart], { type: "application/pdf" }), pdfFileName(controller.sessionId));
     } catch {
@@ -1621,6 +2009,8 @@ async function initUi(): Promise<void> {
     for (const item of el(menuId).querySelectorAll<HTMLButtonElement>("[data-proxy]")) {
       item.addEventListener("click", () => {
         close(true);
+        const t = item.dataset.reportTheme;
+        pendingReportTheme = t === "light" || t === "dark" ? t : null;
         el<HTMLButtonElement>(item.dataset.proxy ?? "").click();
       });
     }
@@ -1657,11 +2047,8 @@ async function initUi(): Promise<void> {
     });
   }
 
-  // Keep page padding equal to the action bar, which can wrap at narrow widths or large text.
-  if (typeof ResizeObserver !== "undefined") {
-    const ro = new ResizeObserver(() => syncActionBarHeight());
-    for (const bar of document.querySelectorAll(".action-bar")) ro.observe(bar);
-  }
+  wireDocStrip();
+  wireDocView();
 
   // Clear everything
   el("btn-purge").addEventListener("click", async () => {
@@ -1672,8 +2059,12 @@ async function initUi(): Promise<void> {
     el<HTMLInputElement>("chk-debug-appcheck").checked = false;
     el<HTMLInputElement>("vault-passphrase").value = "";
     if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("CG_LOCALHOST_APPCHECK_DEBUG");
+    docViewOpen = false;
+    lastImport = null;
+    pendingRestore = null;
     const ok = await run("Clearing everything…", () => controller.purgeAllSessionAndStorage(), { source: "App" });
     if (ok) {
+      sessionSent = 0;
       clearTally();
       talliedDocs.clear();
       finishShownFor = null;

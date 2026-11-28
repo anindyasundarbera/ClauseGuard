@@ -36,6 +36,15 @@ describe("report pdf", () => {
     expect(new TextDecoder().decode(bytes.slice(0, 4))).toBe("%PDF");
     expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThanOrEqual(2);
   });
+  it("dark theme builds and differs from light", async () => {
+    const light = await buildPrivacyReportPdf(base, opts);
+    const dark = await buildPrivacyReportPdf(base, { ...opts, theme: "dark" });
+    expect((await PDFDocument.load(dark)).getPageCount()).toBe((await PDFDocument.load(light)).getPageCount());
+    expect(dark.length).not.toBe(light.length);
+    // building light again after dark gives the light colours back
+    const again = await buildPrivacyReportPdf(base, opts);
+    expect(again.length).toBe(light.length);
+  });
   it("handles empty lists", async () => {
     const bytes = await buildPrivacyReportPdf(base, { ...opts, hiddenItems: [], findings: [] });
     expect(bytes.length).toBeGreaterThan(500);

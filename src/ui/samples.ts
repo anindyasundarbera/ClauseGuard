@@ -12,6 +12,10 @@ export interface UiSample {
   fileName: string;
   text: string;
   audience: "everyone" | "professional";
+  /** Two or three words for the small badge. */
+  short: string;
+  /** Tiny tag on the badge. */
+  tag: "Everyday" | "Work" | "Test";
 }
 
 const TENANT_LEASE =
@@ -50,6 +54,12 @@ const ORIGINAL_BLURBS: Record<string, { title: string; blurb: string }> = {
   },
 };
 
+const SHORT: Record<string, [string, UiSample["tag"]]> = {
+  "sample-msa-trap": ["Agreement", "Work"],
+  "sample-dpa-collision": ["Data addendum", "Work"],
+  "sample-adversarial-injection": ["Tricky NDA", "Test"],
+};
+
 export function buildSamples(): UiSample[] {
   const everyday: UiSample[] = [
     {
@@ -59,6 +69,8 @@ export function buildSamples(): UiSample[] {
       fileName: "apartment_lease_synthetic.txt",
       text: TENANT_LEASE,
       audience: "everyone",
+      short: "Lease",
+      tag: "Everyday",
     },
     {
       id: "sample-medical-bill",
@@ -67,6 +79,8 @@ export function buildSamples(): UiSample[] {
       fileName: "hospital_bill_synthetic.txt",
       text: MEDICAL_BILL,
       audience: "everyone",
+      short: "Hospital bill",
+      tag: "Everyday",
     },
   ];
   const pro: UiSample[] = SYNTHETIC_SAMPLE_CONTRACTS.map((c) => ({
@@ -76,6 +90,8 @@ export function buildSamples(): UiSample[] {
     fileName: c.fileName,
     text: c.text,
     audience: "professional",
+    short: SHORT[c.id]?.[0] ?? "Agreement",
+    tag: SHORT[c.id]?.[1] ?? "Work",
   }));
   return [...everyday, ...pro];
 }
