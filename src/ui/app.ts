@@ -1,4 +1,5 @@
 import "./fonts.css";
+import { buildReadablePrivacyReport } from "./reportHtml.ts";
 import { DEFAULT_PUBLIC_FIREBASE_WEB_CONFIG } from "../core/firebase/firebaseClient.ts";
 import { ClauseGuardSessionController } from "../core/sessionController.ts";
 import type {
@@ -16,7 +17,12 @@ import {
   groupForReview,
   reviewCounts,
   reviewHeading,
-  cleanFindingTitle,
+  plainFinding,
+  findingFootText,
+  finishLede,
+  manualAddFeedback,
+  undecidedHiddenText,
+  categoryLabel,
   describeCloud,
   isCloudVerificationError,
   describeDeviceAi,
@@ -27,9 +33,6 @@ import {
   occurrenceLabel,
   practiceRunCard,
   roleTag,
-  whereCheckedLabel,
-  describePrivacyMode,
-  findingSourceLabel,
   friendlyError,
   furthestStep,
   idsToHide,
@@ -69,6 +72,112 @@ const openMoreRows = new Set<string>();
 let undoSnapshot: Map<string, DetectedEntity["reviewStatus"]> | null = null;
 
 const isBusy = (): boolean => busyText !== null || quietBusy;
+/** True while a busy action shows its progress in place (Import), so no corner toast is needed. */
+let busyInPlace = false;
+/** Name of the file being read, so the drop area can turn into a file card. */
+let readingName: string | null = null;
+
+/**
+ * A timer that pauses while the pointer is over the element or focus is inside it, so a message
+ * never vanishes while someone is reading it or reaching for its button.
+ */
+class AutoHide {
+  private timer: number | null = null;
+  private left = 0;
+  private startedAt = 0;
+  private paused = false;
+  private onExpire: (() => void) | null = null;
+  constructor(node: HTMLElement) {
+    const pause = (): void => {
+      this.paused = true;
+      if (this.timer !== null) {
+        window.clearTimeout(this.timer);
+        this.timer = null;
+        this.left = Math.max(1000, this.left - (Date.now() - this.startedAt));
+      }
+    };
+    const resume = (): void => {
+      this.paused = false;
+      if (this.onExpire && this.timer === null) this.arm();
+    };
+    node.addEventListener("mouseenter", pause);
+    node.addEventListener("focusin", pause);
+    node.addEventListener("mouseleave", () => { if (!node.contains(document.activeElement)) resume(); });
+    node.addEventListener("focusout", () => { if (!node.matches(":hover")) resume(); });
+  }
+  private arm(): void {
+    this.startedAt = Date.now();
+    this.timer = window.setTimeout(() => {
+      this.timer = null;
+      const fn = this.onExpire;
+      this.onExpire = null;
+      fn?.();
+    }, this.left);
+  }
+  start(ms: number, onExpire: () => void): void {
+    this.cancel();
+    this.left = ms;
+    this.onExpire = onExpire;
+    if (!this.paused) this.arm();
+  }
+  cancel(): void {
+    if (this.timer !== null) window.clearTimeout(this.timer);
+    this.timer = null;
+    this.onExpire = null;
+  }
+}
+
+const TOAST_MS = 8000;
+
+/** A small bottom-right message with an optional action. Returns a function that removes it. */
+function showToast(opts: { text: string; key?: string; actionLabel?: string; onAction?: () => void; onClose?: () => void }): () => void {
+  const region = el("toast-region");
+  if (opts.key) dismissToasts(opts.key);
+  const box = document.createElement("div");
+  box.className = "toast";
+  if (opts.key) box.dataset.toastKey = opts.key;
+  const text = document.createElement("span");
+  text.className = "toast-text";
+  text.textContent = opts.text;
+  box.appendChild(text);
+  const hider = new AutoHide(box);
+  const remove = (): void => {
+    hider.cancel();
+    box.remove();
+  };
+  if (opts.actionLabel && opts.onAction) {
+    const act = document.createElement("button");
+    act.type = "button";
+    act.className = "btn btn-small btn-outline toast-action";
+    act.textContent = opts.actionLabel;
+    act.addEventListener("click", () => {
+      remove();
+      opts.onAction?.();
+    });
+    box.appendChild(act);
+  }
+  box.appendChild(closeButton(() => { remove(); opts.onClose?.(); }));
+  region.appendChild(box);
+  hider.start(TOAST_MS, remove);
+  return remove;
+}
+
+function closeButton(onClick: () => void): HTMLButtonElement {
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "Close this message");
+  const x = document.createElement("span");
+  x.setAttribute("aria-hidden", "true");
+  x.textContent = "\u00d7";
+  close.append(x);
+  close.addEventListener("click", onClick);
+  return close;
+}
+
+function dismissToasts(key: string): void {
+  for (const t of document.querySelectorAll(`#toast-region [data-toast-key="${key}"]`)) t.remove();
+}
 
 /** aria-disabled keeps a button focusable and in the Tab order, so it can explain itself. */
 function setAriaDisabled(btn: HTMLElement, off: boolean): void {
@@ -154,6 +263,7 @@ function resetConsent(): void {
 
 function goTo(step: StepNumber, focus = true): void {
   if (step !== currentStep) noticeText = null;
+  if (step === 4) dismissToasts("undo");
   currentStep = step;
   advancedOpen = false;
   renderAll();
@@ -164,8 +274,9 @@ function goTo(step: StepNumber, focus = true): void {
 /** Set when the cloud refused this app's App Check attestation; cleared by a later successful cloud check. */
 let cloudRefused = false;
 
-async function run(label: string, fn: () => Promise<void>): Promise<boolean> {
+async function run(label: string, fn: () => Promise<void>, opts: { inPlace?: boolean } = {}): Promise<boolean> {
   busyText = label;
+  busyInPlace = Boolean(opts.inPlace);
   errorText = null;
   noticeText = null;
   renderAll();
@@ -177,15 +288,26 @@ async function run(label: string, fn: () => Promise<void>): Promise<boolean> {
     return false;
   } finally {
     busyText = null;
+    busyInPlace = false;
     renderAll();
   }
 }
 
-function setBanner(id: string, text: string | null): void {
+/** Banners live in the corner toast area. They are rebuilt only when their text changes, so focus stays put. */
+function setBanner(id: string, text: string | null, onClose?: () => void): void {
   const box = el(id);
   box.hidden = !text;
-  box.textContent = text ?? "";
+  if ((box.dataset.text ?? "") === (text ?? "")) return;
+  box.dataset.text = text ?? "";
+  if (!text) { box.replaceChildren(); return; }
+  const span = document.createElement("span");
+  span.className = "toast-text";
+  span.textContent = text;
+  box.replaceChildren(span);
+  if (onClose) box.appendChild(closeButton(onClose));
 }
+
+const noticeHider = new AutoHide(el("notice-box"));
 
 function renderStatusBar(): void {
   const telemetry = controller.getObservedFirebaseTelemetry();
@@ -285,6 +407,8 @@ function renderStepper(maxStep: StepNumber): void {
 
 /** Keep scroll padding and page padding equal to the real height of the visible action bar. */
 function syncActionBarHeight(): void {
+  const top = document.querySelector<HTMLElement>(".appbar")?.getBoundingClientRect().height ?? 0;
+  if (top > 0) document.documentElement.style.setProperty("--appbar-live", `${Math.ceil(top)}px`);
   const bar = advancedOpen ? null : el(`panel-${currentStep}`).querySelector<HTMLElement>(".action-bar");
   const h = bar ? bar.getBoundingClientRect().height : 0;
   if (h > 0) document.documentElement.style.setProperty("--actionbar-h", `${Math.ceil(h)}px`);
@@ -298,6 +422,17 @@ function renderImport(): void {
   const hint = el("import-continue-hint");
   hint.textContent = hasDoc ? "" : "Choose a file first";
   hint.hidden = hasDoc;
+  // While a file is read, the drop area becomes the file card in the same box.
+  const reading = readingName !== null && busyText !== null;
+  const dz = el("dropzone");
+  dz.classList.toggle("is-reading", reading);
+  dz.setAttribute("aria-busy", String(reading));
+  el("dropzone-idle").hidden = reading;
+  el("dropzone-reading").hidden = !reading;
+  if (reading) {
+    el("dropzone-file-name").textContent = readingName;
+    el("dropzone-reading-text").textContent = `Reading ${readingName} on this device…`;
+  }
 }
 
 function renderUnderTheHood(): void {
@@ -323,10 +458,15 @@ function renderUnderTheHood(): void {
 }
 
 function renderBanners(): void {
-  el("busy-banner").hidden = busyText === null;
+  el("busy-banner").hidden = busyText === null || busyInPlace;
   el("busy-text").textContent = busyText ?? "";
-  setBanner("error-box", errorText);
-  setBanner("notice-box", noticeText);
+  setBanner("error-box", errorText, () => { errorText = null; renderBanners(); });
+  const before = el("notice-box").dataset.text ?? "";
+  setBanner("notice-box", noticeText, () => { noticeText = null; renderBanners(); });
+  if ((noticeText ?? "") !== before) {
+    if (noticeText) noticeHider.start(TOAST_MS, () => { noticeText = null; renderBanners(); });
+    else noticeHider.cancel();
+  }
   const warn = el("warnings-box");
   warn.replaceChildren();
   let shown = plainWarnings(controller.warnings);
@@ -366,8 +506,10 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
   const ids = group.map((g) => g.id);
   const card = document.createElement("div");
   const pending = group.some((g) => g.reviewStatus === "PENDING_REVIEW" || g.reviewStatus === "NEEDS_DECISION");
-  card.className = `entity-card${pending ? " is-pending" : ""}`;
+  const hiddenRow = !pending && group.every((g) => g.reviewStatus === "ACCEPTED");
+  card.className = `entity-card ${pending ? "is-pending" : hiddenRow ? "is-hidden" : "is-shown"}`;
   card.setAttribute("data-entity-id", ent.id);
+  card.setAttribute("data-entity-ids", ids.join(" "));
 
   const main = document.createElement("div");
   main.className = "entity-main";
@@ -380,11 +522,11 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
   const parts = [detectionNote(group)];
   if (group.length > 1) parts.push(occurrenceLabel(group.length));
   const how = parts.join(" · ");
-  meta.textContent = pending
-    ? `Needs your decision · ${how}`
-    : ent.reviewStatus === "ACCEPTED"
-      ? `Will be hidden · ${how}`
-      : `Will stay visible · ${how}`;
+  // The row itself says what will happen: Hidden, Will be sent, or Needs your decision.
+  const state = document.createElement("strong");
+  state.className = "entity-state";
+  state.textContent = pending ? "Needs your decision" : hiddenRow ? "Hidden" : "Will be sent";
+  meta.append(state, ` \u00b7 ${how}`);
   const tagText = roleTag(ent.role);
   if (tagText) {
     const tag = document.createElement("span");
@@ -403,15 +545,7 @@ function entityRow(group: DetectedEntity[]): HTMLElement {
     const b = document.createElement("button");
     b.type = "button";
     const pressed = !pending && group.every((g) => g.reviewStatus === status);
-    if (pressed) {
-      const tick = document.createElement("span");
-      tick.className = "seg-tick";
-      tick.setAttribute("aria-hidden", "true");
-      tick.textContent = "\u2713 ";
-      b.append(tick, document.createTextNode(label));
-    } else {
-      b.textContent = label;
-    }
+    b.textContent = label;
     b.setAttribute("aria-pressed", String(pressed));
     b.setAttribute("data-testid", `${testPrefix}-${ent.id}`);
     b.setAttribute("aria-describedby", `meta-${ent.id}`);
@@ -621,7 +755,7 @@ function renderApprove(): void {
   } else if (hybrid) {
     status.textContent = "Nothing is sent yet. Approve below if you want it sent.";
   } else {
-    status.textContent = `Nothing has been sent. ${describePrivacyMode(controller.privacyMode)}.`;
+    status.textContent = "Nothing has been sent. The check stays on this device.";
   }
 
   const unresolved = counts.pendingTotal;
@@ -684,15 +818,30 @@ function approveBlocker(): string | null {
 /** Documents already counted in the on-device tally this session (by document id). */
 const talliedDocs = new Set<string>();
 
+const finishHider = new AutoHide(el("finish-card"));
+/** The findings list the finish message was last shown for, so it appears once per result. */
+let finishShownFor: unknown = null;
+
+function hideFinish(): void {
+  finishHider.cancel();
+  el("finish-card").hidden = true;
+}
+
 function renderFinish(): void {
   const card = el("finish-card");
   const done = controller.findings.length > 0 && Boolean(controller.document);
-  card.hidden = !done;
-  if (!done) return;
+  const lede = el("results-lede");
+  if (!done) {
+    finishShownFor = null;
+    hideFinish();
+    lede.textContent = "Real names and numbers are put back on this device only.";
+    return;
+  }
   const n = ledgerCounts(controller.entities).hiddenTotal;
   const sentToCloud = controller.lastCloudSdkSource === "in_cloud";
   el("finish-title").textContent = `All done. ${n} detail${n === 1 ? "" : "s"} kept private.`;
   el("finish-sub").textContent = sentToCloud ? "Only the cleaned text was sent." : "Nothing personal was sent.";
+  lede.textContent = finishLede(n, sentToCloud);
   const docId = controller.document!.docId;
   if (currentStep === 4 && !talliedDocs.has(docId)) {
     talliedDocs.add(docId);
@@ -702,6 +851,14 @@ function renderFinish(): void {
   const t = readTally();
   pill.hidden = t.docs === 0;
   pill.textContent = tallyText(t);
+  if (currentStep !== 4) {
+    hideFinish();
+  } else if (finishShownFor !== controller.findings) {
+    // A small happy notification, shown once for this result. It hides itself.
+    finishShownFor = controller.findings;
+    card.hidden = false;
+    finishHider.start(TOAST_MS, () => { card.hidden = true; });
+  }
 }
 
 function renderResults(): void {
@@ -713,10 +870,10 @@ function renderResults(): void {
   srcBox.hidden = true;
 
   for (const f of controller.findings) {
-    const src = findingSourceLabel(f);
     const card = document.createElement("article");
     card.className = `finding sev-${f.severity}`;
 
+    // The message comes first. Where it was checked is one small line at the bottom.
     const head = document.createElement("div");
     head.className = "finding-head";
     const sev = document.createElement("span");
@@ -724,36 +881,43 @@ function renderResults(): void {
     sev.textContent = severityLabel(f.severity);
     const title = document.createElement("h2");
     title.className = "finding-title";
-    title.textContent = cleanFindingTitle(f.title);
-    const where = document.createElement("span");
-    where.className = "chip chip-kind where-badge";
-    where.textContent = whereCheckedLabel(f.analysisSource === "SIMULATED_CLOUD_SYNTHESIS" ? f.analysisSource : (f.observedInferenceSource ?? f.analysisSource));
-    head.append(sev, title, where);
-
-    const quote = document.createElement("blockquote");
-    quote.className = "finding-quote";
-    quote.textContent = f.rehydratedExcerpt || f.anonymizedExcerpt;
+    const plain = plainFinding(f);
+    title.textContent = plain.title;
+    head.append(sev, title);
 
     const why = document.createElement("p");
     why.className = "finding-why";
-    why.textContent = f.rationale;
+    why.textContent = plain.message;
+    card.append(head, why);
 
-    const sourceP = document.createElement("p");
-    sourceP.className = "muted small";
-    sourceP.textContent = `${src.label}${f.clauseRefs.length ? ` · ${f.clauseRefs.join(", ")}` : ""}`;
+    const excerpt = f.rehydratedExcerpt || f.anonymizedExcerpt;
+    if (f.rationale && excerpt) {
+      const quote = document.createElement("p");
+      quote.className = "finding-excerpt";
+      quote.textContent = `From your document: ${excerpt}`;
+      card.append(quote);
+    }
 
-    const det = document.createElement("details");
-    const sum = document.createElement("summary");
-    sum.textContent = "What the check saw (cleaned version)";
-    const anon = document.createElement("p");
-    anon.textContent = f.anonymizedExcerpt;
-    const tech = document.createElement("p");
-    tech.textContent = `Source: ${f.analysisSource}${f.observedInferenceSource ? ` | sdk:${f.observedInferenceSource}` : ""}${f.unmappedTokens.length ? ` | Unmapped tokens: ${f.unmappedTokens.join(", ")}` : ""}`;
-    det.append(sum, anon, tech);
-
-    card.append(head, quote, why, sourceP, det);
+    const foot = document.createElement("p");
+    foot.className = "finding-foot";
+    const where = document.createElement("span");
+    where.className = "where-badge";
+    where.textContent = findingFootText(f);
+    foot.append(where);
+    card.append(foot);
     list.appendChild(card);
   }
+}
+
+/** Briefly tint the row for a newly added item, and bring it into view on wide screens. */
+function highlightRow(entityId: string): void {
+  const row = Array.from(document.querySelectorAll<HTMLElement>(".entity-card")).find((c) =>
+    (c.dataset.entityIds ?? "").split(" ").includes(entityId)
+  );
+  if (!row) return;
+  row.classList.add("is-new");
+  if (window.matchMedia("(min-width: 1024px)").matches) row.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => row.classList.remove("is-new"), 3200);
 }
 
 function renderAll(): void {
@@ -780,8 +944,12 @@ async function importDocument(
   resetConsent();
   undoSnapshot = null;
   openMoreRows.clear();
-  const ok = await run("Reading your document on this device…", () => controller.ingestFileOrText(input));
+  dismissToasts("undo");
+  readingName = input.fileName || "your document";
+  const ok = await run("Reading your document on this device…", () => controller.ingestFileOrText(input), { inPlace: true });
+  readingName = null;
   if (ok) goTo(2);
+  else renderAll();
 }
 
 /**
@@ -920,30 +1088,51 @@ async function initUi(): Promise<void> {
     reviewChange("All undecided items hidden", () => controller.acceptAllPendingEntities())
   );
 
-  const continueDialog = el<HTMLDialogElement>("continue-dialog");
-  el("btn-review-continue").addEventListener("click", () => {
+  // Continue never asks a question. Undecided details are hidden (hiding is always safe), the next
+  // step lists what was hidden, and a short-lived Undo toast puts the choices back.
+  el("btn-review-continue").addEventListener("click", async () => {
     if (isBusy() || !controller.document) return;
-    const blocker = reviewContinueBlocker(reviewCounts(controller.entities).pending);
-    if (!blocker) {
+    const pendingRows = reviewCounts(controller.entities).pending;
+    if (!reviewContinueBlocker(pendingRows)) {
       goTo(3);
       return;
     }
-    // Nothing is skipped silently: undecided items are either hidden here or chosen by hand.
-    el("continue-dialog-desc").textContent = blocker;
-    continueDialog.showModal();
-    el("btn-dialog-hide-continue").focus();
-  });
-  el("btn-dialog-back").addEventListener("click", () => continueDialog.close());
-  continueDialog.addEventListener("close", () => {
-    if (currentStep === 2) el("btn-review-continue").focus({ preventScroll: true });
-  });
-  el("btn-dialog-hide-continue").addEventListener("click", async () => {
-    continueDialog.close();
+    const before = new Map(controller.entities.map((e) => [e.id, e.reviewStatus]));
     resetConsent();
     snapshotStatuses();
-    const ok = await run("Hiding the rest…", () => controller.acceptAllPendingEntities());
-    if (ok) goTo(3);
+    quietBusy = true;
+    errorText = null;
+    let ok = true;
+    try {
+      await controller.acceptAllPendingEntities();
+    } catch (err) {
+      ok = false;
+      errorText = friendlyError(err);
+    } finally {
+      quietBusy = false;
+    }
+    if (!ok) {
+      renderAll();
+      return;
+    }
+    goTo(3);
+    showToast({
+      key: "undo",
+      text: undecidedHiddenText(pendingRows),
+      actionLabel: "Undo",
+      onAction: () => {
+        goTo(2);
+        void reviewChange("Undone", async () => {
+          for (const ent of controller.entities) {
+            const prev = before.get(ent.id);
+            if (prev) ent.reviewStatus = prev;
+          }
+          await controller.toggleEntityStatus([], "ACCEPTED");
+        });
+      },
+    });
   });
+  el("btn-finish-close").addEventListener("click", () => hideFinish());
 
   // "More actions" menu in the Review bar
   const moreBtn = el<HTMLButtonElement>("btn-review-more");
@@ -1003,29 +1192,51 @@ async function initUi(): Promise<void> {
     input.scrollIntoView({ block: "center" });
     input.focus({ preventScroll: true });
   });
+  const manualFeedback = el("manual-feedback");
+  const showManualFeedback = (text: string | null, ok = true): void => {
+    manualFeedback.hidden = !text;
+    manualFeedback.textContent = text ?? "";
+    manualFeedback.classList.toggle("is-error", !ok);
+  };
+  el<HTMLInputElement>("manual-surface").addEventListener("input", () => showManualFeedback(null));
   el<HTMLFormElement>("manual-entity-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
+    if (isBusy()) return;
     const surf = el<HTMLInputElement>("manual-surface").value.trim();
     if (!surf) {
-      errorText = "Type the word or phrase you want hidden first.";
-      renderAll();
+      showManualFeedback("Type the word or phrase you want hidden first.", false);
       el("manual-surface").focus();
       return;
     }
-    const cat = el<HTMLSelectElement>("manual-category").value as DetectedEntity["category"];
+    const catSelect = el<HTMLSelectElement>("manual-category");
+    const cat = catSelect.value as DetectedEntity["category"];
+    const catText = (catSelect.selectedOptions[0]?.textContent ?? categoryLabel(cat)).trim();
+    const btn = el<HTMLButtonElement>("btn-add-entity");
+    const idle = btn.textContent;
     resetConsent();
+    snapshotStatuses();
+    quietBusy = true;
+    btn.textContent = "Hiding\u2026";
+    setAriaDisabled(btn, true);
     let added = 0;
-    const ok = await run("Hiding it everywhere…", async () => {
+    try {
       added = await controller.addManualEntity(surf, cat, "PARTY");
-    });
-    if (ok) {
-      if (added === 0) {
-        errorText = `We couldn't find “${surf}” in the document. Check the spelling and capitalization.`;
-      } else {
-        noticeText = `Hidden in ${added} place${added === 1 ? "" : "s"}.`;
-        el<HTMLInputElement>("manual-surface").value = "";
-      }
-      renderAll();
+    } catch (err) {
+      showManualFeedback(friendlyError(err), false);
+      return;
+    } finally {
+      quietBusy = false;
+      btn.textContent = idle;
+      setAriaDisabled(btn, false);
+    }
+    const fb = manualAddFeedback(surf, added, catText);
+    showManualFeedback(fb.text, fb.ok);
+    if (fb.ok) el<HTMLInputElement>("manual-surface").value = "";
+    renderAll();
+    if (fb.ok) {
+      announce(fb.text);
+      const found = controller.entities.find((e) => e.source === "HUMAN_ADDED" && e.surface === surf);
+      if (found) highlightRow(found.id);
     }
   });
 
@@ -1082,11 +1293,18 @@ async function initUi(): Promise<void> {
 
   // Results
   el("btn-export-report").addEventListener("click", () => {
-    const blob = new Blob([JSON.stringify(controller.getPrivacyReport16(), null, 2)], { type: "application/json" });
+    // A readable page anyone can open. The raw JSON stays under Advanced settings.
+    const ledger = ledgerCounts(controller.entities);
+    const html = buildReadablePrivacyReport(controller.getPrivacyReport16(), {
+      hiddenItems: ledger.hiddenByCategory.map((c) => ({ label: c.label, category: "" })),
+      hiddenTotal: ledger.hiddenTotal,
+      findingsCount: controller.findings.length,
+    });
+    const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `clauseguard_privacy_report_${controller.sessionId}.json`;
+    a.download = `clauseguard_privacy_report_${controller.sessionId}.html`;
     a.click();
     URL.revokeObjectURL(url);
   });

@@ -117,11 +117,6 @@
   </dialog>
 
   <main id="main" class="page" role="main">
-    <div id="busy-banner" class="banner banner-busy" role="status" aria-live="polite" hidden>
-      <span class="spinner" aria-hidden="true"></span><span id="busy-text">Working…</span>
-    </div>
-    <div id="error-box" data-testid="error-box" class="banner banner-error" role="alert" hidden></div>
-    <div id="notice-box" data-testid="notice-box" class="banner banner-info" role="status" aria-live="polite" hidden></div>
     <div id="warnings-box" data-testid="warnings-box" class="banner banner-warn" role="status" aria-live="polite" hidden></div>
     <!-- One polite region for Review outcomes ("Hidden. 7 left to decide."), never for activity. -->
     <div id="review-announcer" data-testid="review-announcer" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -148,9 +143,16 @@
       <div class="cols cols-7-5">
         <div class="col-main">
           <label class="dropzone" id="dropzone" for="file-input">
-            <span class="dropzone-title">Choose a file or drop it here</span>
-            <span class="dropzone-sub" id="file-limits"></span>
-            <span class="btn btn-outline dropzone-btn" aria-hidden="true">Choose a file</span>
+            <span class="dropzone-idle" id="dropzone-idle">
+              <span class="dropzone-title">Choose a file or drop it here</span>
+              <span class="dropzone-sub" id="file-limits"></span>
+              <span class="btn btn-outline dropzone-btn" aria-hidden="true">Choose a file</span>
+            </span>
+            <span class="dropzone-reading" id="dropzone-reading" role="status" hidden>
+              <span class="dropzone-file" id="dropzone-file-name"></span>
+              <span class="dropzone-sub" id="dropzone-reading-text">Reading on this device…</span>
+              <span class="calm-bar" aria-hidden="true"><span></span></span>
+            </span>
             <input id="file-input" data-testid="file-input" type="file" accept=".pdf,.docx,.txt,.md" />
           </label>
         </div>
@@ -215,6 +217,7 @@
               </select>
             </div>
             <button id="btn-add-entity" type="submit" class="btn btn-outline btn-block">Hide it everywhere</button>
+            <p id="manual-feedback" data-testid="manual-feedback" class="manual-feedback" role="status" aria-live="polite" hidden></p>
           </form>
         </section>
       </div>
@@ -243,7 +246,7 @@
       </div>
     </section>
 
-    <dialog id="continue-dialog" data-testid="continue-dialog" class="sheet" aria-labelledby="continue-dialog-title" aria-describedby="continue-dialog-desc">
+    <dialog id="continue-dialog" data-testid="continue-dialog" class="sheet" hidden aria-hidden="true" aria-labelledby="continue-dialog-title" aria-describedby="continue-dialog-desc">
       <h2 id="continue-dialog-title" class="sheet-title" tabindex="-1">Some details still need a choice</h2>
       <p id="continue-dialog-desc"></p>
       <div class="sheet-actions">
@@ -261,8 +264,8 @@
 
       <section class="ledger cols cols-7-5" id="ledger" data-testid="ledger" aria-labelledby="ledger-title">
         <div class="col-main">
-          <div class="box ledger-out">
-            <h2 id="ledger-title" class="box-title">Would be sent, exactly as shown</h2>
+          <div class="ledger-out">
+            <h2 id="ledger-title" class="ledger-heading">Would be sent, exactly as shown</h2>
             <p id="ledger-status" data-testid="ledger-status" class="ledger-status">Nothing has been sent.</p>
             <pre id="sanitized-preview" data-testid="sanitized-preview" class="payload" tabindex="0" aria-label="Exact cleaned text that can be sent" spellcheck="false" translate="no"></pre>
             <p class="muted small" id="payload-size-note"></p>
@@ -272,11 +275,8 @@
           <div class="box ledger-local">
             <h2 class="box-title"><span class="lock" aria-hidden="true">&#128274;</span> Stays on this device</h2>
             <p class="big-number"><span id="count-hidden" data-testid="count-hidden">0</span> <span class="big-label">details hidden</span></p>
-            <details class="ledger-more">
-              <summary>Show list</summary>
-              <ul id="ledger-local-list" class="ledger-list"></ul>
-              <p class="muted small" id="ledger-original-note">Your original document stays in this tab’s memory.</p>
-            </details>
+            <ul id="ledger-local-list" class="ledger-list" tabindex="0" aria-label="Hidden details"></ul>
+            <p class="muted small" id="ledger-original-note">Your original document stays in this tab’s memory.</p>
             <p id="ledger-visible-note" class="ledger-visible" hidden></p>
           </div>
 
@@ -336,16 +336,6 @@
       </div>
       <div class="cols cols-8-4">
         <div class="col-main">
-          <section id="finish-card" data-testid="finish-card" class="finish-card" aria-labelledby="finish-title" hidden>
-            <span class="finish-check" aria-hidden="true">
-              <svg viewBox="0 0 48 48" width="48" height="48" focusable="false"><circle cx="24" cy="24" r="24" class="finish-disc"/><path d="M14 25l7 7 13-15" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" class="finish-tick"/></svg>
-            </span>
-            <div class="finish-body">
-              <h2 id="finish-title" class="finish-title">All done.</h2>
-              <p id="finish-sub" class="finish-sub">Nothing personal was sent.</p>
-              <p id="tally-pill" data-testid="tally-pill" class="tally-pill" hidden></p>
-            </div>
-          </section>
           <div id="findings-empty" class="empty">
             <p class="empty-title">No results yet.</p>
             <p class="muted">Approve the cleaned text and run the deeper check, or check on this device only.</p>
@@ -465,6 +455,26 @@
       </div>
     </section>
   </main>
+
+  <!-- One calm notification area, bottom right (above the action bar on phones). -->
+  <div id="toast-region" class="toast-region" aria-live="polite">
+    <div id="busy-banner" class="toast toast-busy" role="status" hidden>
+      <span class="spinner" aria-hidden="true"></span><span id="busy-text">Working…</span>
+    </div>
+    <div id="error-box" data-testid="error-box" class="toast toast-error" role="alert" hidden></div>
+    <div id="notice-box" data-testid="notice-box" class="toast" role="status" hidden></div>
+    <section id="finish-card" data-testid="finish-card" class="toast toast-finish" aria-labelledby="finish-title" hidden>
+      <span class="finish-check" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="32" height="32" focusable="false"><circle cx="24" cy="24" r="24" class="finish-disc"/><path d="M14 25l7 7 13-15" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" class="finish-tick"/></svg>
+      </span>
+      <div class="finish-body">
+        <h2 id="finish-title" class="finish-title">All done.</h2>
+        <p id="finish-sub" class="finish-sub">Nothing personal was sent.</p>
+        <p id="tally-pill" data-testid="tally-pill" class="tally-pill" hidden></p>
+      </div>
+      <button id="btn-finish-close" type="button" class="toast-close" aria-label="Close this message"><span aria-hidden="true">&times;</span></button>
+    </section>
+  </div>
 
   <footer class="site-footer">
     <p>Your document is read in this browser tab. Cloud checks only see text you approve. <a href="./guide.html" target="_blank" rel="noopener">User guide</a></p>

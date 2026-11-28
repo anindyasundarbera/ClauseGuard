@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { buildSamples } from "../../src/ui/samples.ts";
 import {
   categoryLabel,
+  cleanFindingTitle,
+  finishLede,
+  manualAddFeedback,
+  undecidedHiddenText,
   describeCloud,
   describeDeviceAi,
   furthestStep,
@@ -101,5 +105,31 @@ describe("shield progress", () => {
     expect(shieldProgress(0, 0).complete).toBe(false);
     expect(shieldProgress(9, 5).pct).toBe(100);
     expect(shieldProgress(-2, 5).pct).toBe(0);
+  });
+});
+
+describe("calm Review and Results wording", () => {
+  it("strips engine words from finding titles", () => {
+    expect(cleanFindingTitle("[HIGH_RISK] Uncapped liability")).toBe("Uncapped liability");
+    expect(cleanFindingTitle("Local Deterministic Triage: Exclusion keyword")).toBe("Exclusion keyword");
+    const nano = cleanFindingTitle("On-Device Gemini Nano Clause Triage (Firebase ONLY_ON_DEVICE)");
+    expect(nano).not.toMatch(/Nano|Firebase|ONLY_|Deterministic|Triage:/i);
+    expect(nano.length).toBeGreaterThan(0);
+    expect(cleanFindingTitle("Auto-renewal in 60 days")).toBe("Auto-renewal in 60 days");
+  });
+  it("words the undecided-hidden toast and the finish line", () => {
+    expect(undecidedHiddenText(1)).toBe("1 undecided detail was hidden.");
+    expect(undecidedHiddenText(3)).toBe("3 undecided details were hidden.");
+    expect(finishLede(21, false)).toBe("21 details kept private. Nothing personal was sent.");
+    expect(finishLede(1, true)).toBe("1 detail kept private. Only the cleaned text was sent.");
+  });
+  it("gives feedback under the manual form", () => {
+    expect(manualAddFeedback("Jordan Ellis", 3, "Person's name")).toEqual({
+      ok: true,
+      text: "Hidden in 3 places. Added to the list as Person's name.",
+    });
+    const miss = manualAddFeedback("Zed", 0, "Person's name");
+    expect(miss.ok).toBe(false);
+    expect(miss.text).toContain("Zed");
   });
 });

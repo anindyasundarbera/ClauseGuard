@@ -124,12 +124,12 @@ code { font-size: 0.88em; background: var(--surface-2); padding: 0.1em 0.35em; b
 @media (max-width: 640px) {
   :root { --appbar-h: 48px; --gutter: 16px; --actionbar-h: 73px; }
 }
-html { scroll-padding-bottom: calc(var(--actionbar-h) + 1rem); scroll-padding-top: 1rem; }
+html { scroll-padding-bottom: calc(var(--actionbar-h) + 1rem); scroll-padding-top: calc(var(--appbar-live, var(--appbar-h)) + 1rem); }
 body { min-height: 100vh; display: flex; flex-direction: column; padding-bottom: calc(var(--actionbar-h) + env(safe-area-inset-bottom, 0px)); }
 html.no-actionbar body { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
 /* ---------- App bar ---------- */
-.appbar { background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 10; }
+.appbar { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 12; }
 .appbar-inner {
   max-width: var(--page-max); margin: 0 auto; padding: 0 var(--gutter);
   min-height: var(--appbar-h); display: flex; align-items: center; gap: 0.75rem 1rem;
@@ -402,7 +402,7 @@ textarea { font-family: var(--mono); font-size: 0.85rem; }
 .action-more { display: none; }
 .menu-wrap { position: relative; }
 .action-menu {
-  position: absolute; right: 0; bottom: calc(100% + 0.5rem); z-index: 9; min-width: 17rem; max-width: calc(100vw - 2rem);
+  position: absolute; right: 0; bottom: calc(100% + 1.25rem); z-index: 9; min-width: 17rem; max-width: calc(100vw - 2rem);
   display: flex; flex-direction: column; padding: 0.35rem;
   background: var(--surface); border: 2px solid var(--control-line); border-radius: 12px; box-shadow: var(--shadow);
 }
@@ -643,4 +643,114 @@ html.guide-page body, body:has(.page.guide) { padding-bottom: 0; }
 /* Very narrow phones: drop the word "Step" so the step name stays readable beside the shield. */
 @media (max-width: 420px) {
   .step-compact-pre { display: none; }
+}
+
+
+/* =====================================================================
+   ROUND 2 (calm workspace): furniture that stays put, one quiet notification
+   corner, records as the focus, flat Approve text, message-first results.
+   ===================================================================== */
+:root { --shadow-lift: 0 2px 4px rgba(42, 52, 51, 0.06), 0 10px 30px rgba(42, 52, 51, 0.12); --toast-line: var(--line); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --shadow-lift: none; --toast-line: var(--control-line); } }
+:root[data-theme="dark"] { --shadow-lift: none; --toast-line: var(--control-line); }
+
+/* Side column stays in place like furniture; only the main column scrolls. */
+@media (min-width: 1024px) {
+  .cols > .col-side {
+    position: sticky; top: calc(var(--appbar-live, var(--appbar-h)) + 1rem);
+    max-height: calc(100vh - var(--appbar-live, var(--appbar-h)) - var(--actionbar-h) - 2rem); overflow: auto;
+  }
+}
+
+/* Notification corner: bottom right on desktop, full width above the action bar on phones. */
+.toast-region {
+  position: fixed; right: 24px; bottom: calc(var(--actionbar-h) + 16px); z-index: 30;
+  width: min(24rem, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 0.6rem; pointer-events: none;
+}
+.toast-region > * { pointer-events: auto; }
+.toast {
+  display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0.5rem 0.7rem 1.1rem;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--toast-line); border-radius: 16px;
+  box-shadow: var(--shadow-lift); font-size: 0.95rem; line-height: 1.4;
+}
+.toast-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.toast-action { flex: none; min-height: 44px; }
+.toast-close {
+  flex: none; min-width: 44px; min-height: 44px; border: 0; border-radius: 12px; background: transparent;
+  color: var(--muted); font-size: 1.5rem; line-height: 1; cursor: pointer;
+}
+.toast-close:hover { background: var(--surface-2); color: var(--ink); }
+.toast-busy { padding-right: 1.1rem; color: var(--accent-ink); background: var(--accent-soft); }
+.toast-error { background: var(--err-bg); color: var(--err-ink); border-color: var(--err-line); font-weight: 600; }
+.toast-finish { align-items: flex-start; padding: 0.9rem 0.5rem 0.9rem 1rem; }
+.toast-finish .finish-check { margin-top: 0.1rem; }
+.toast-finish .finish-body { flex: 1 1 auto; min-width: 0; }
+.toast-finish .finish-title { font: 600 1.05rem/1.3 var(--serif); }
+.toast-finish .finish-sub { margin: 0.15rem 0 0; font-size: 0.9rem; color: var(--muted); }
+.toast-finish .tally-pill { margin: 0.35rem 0 0; padding: 0; background: none; border-radius: 0; font-size: 0.85rem; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .toast, .toast-finish { animation: toast-in 0.25s ease-out both; }
+  @keyframes toast-in { from { opacity: 0; } to { opacity: 1; } }
+}
+@media (max-width: 640px) {
+  .toast-region { left: 16px; right: 16px; width: auto; bottom: calc(var(--actionbar-h) + 12px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Import: the drop area becomes the file card in the same box. */
+.dropzone-idle, .dropzone-reading { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; max-width: 100%; }
+.dropzone.is-reading { cursor: progress; border-style: solid; background: var(--surface-2); }
+.dropzone.is-reading input { pointer-events: none; }
+.dropzone-file { font: 700 1.3rem/1.3 var(--serif); overflow-wrap: anywhere; }
+.calm-bar { position: relative; display: block; width: min(18rem, 70%); height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 0.5rem; }
+.calm-bar > span { position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: 3px; background: var(--accent); animation: calm-slide 1.8s ease-in-out infinite; }
+@keyframes calm-slide { 0% { left: -35%; } 100% { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .calm-bar > span { width: 100%; opacity: 0.45; } }
+.sample:disabled { opacity: 1; cursor: progress; }
+
+/* Review: the record carries the state; the Hide/Show control is quiet. */
+.entity-card { border: 1px solid var(--line); border-left: 4px solid var(--line); padding: 0.75rem 0.9rem; }
+.entity-card.is-hidden { background: var(--accent-soft); border-left-color: var(--accent); }
+.entity-card.is-shown { background: var(--surface); }
+.entity-card.is-pending, .entity-card.is-pending:not(.x) { background: var(--surface); border-color: var(--line); border-left-color: var(--warn-line); }
+.entity-state { font-weight: 700; color: var(--ink); }
+.entity-card.is-hidden .entity-state, .entity-card.is-hidden .entity-meta { color: var(--accent-ink); }
+.entity-card.is-pending .entity-state, .entity-card.is-pending .entity-meta { color: var(--warn-ink); }
+.entity-surface { font-size: 1.05rem; }
+.seg { border: 1.5px solid var(--control-line); border-radius: 12px; background: transparent; gap: 0; }
+.seg button { border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 500; padding: 0.3rem 0.8rem; }
+.seg button + button { border-left: 1.5px solid var(--control-line); border-radius: 0; }
+.seg button:first-child { border-radius: 10px 0 0 10px; }
+.seg button:last-child { border-radius: 0 10px 10px 0; }
+.seg button:hover { background: var(--surface-2); color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+.entity-card.is-hidden .seg button[aria-pressed="true"] { background: var(--surface); }
+.entity-card.is-new { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .entity-card.is-new { animation: row-new 3s ease-out both; }
+  @keyframes row-new { from { background: var(--accent-soft); } to { background: transparent; } }
+}
+.manual-feedback { margin-top: 0.75rem; padding: 0.6rem 0.8rem; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; font-size: 0.92rem; }
+.manual-feedback.is-error { background: var(--warn-bg); color: var(--warn-ink); }
+
+/* Approve: the cleaned text sits directly on the page. */
+.ledger-out { display: flex; flex-direction: column; gap: 0.5rem; }
+.ledger-heading { font: 600 1.3rem/1.3 var(--serif); }
+.ledger-status { margin: 0; padding: 0; background: none; border-radius: 0; display: block; font-weight: 500; font-size: 0.95rem; color: var(--accent-ink); }
+.ledger-status.is-sent { background: none; color: var(--warn-ink); }
+.payload {
+  margin: 0.4rem 0 0; padding: 0.1rem 0 0.1rem 1.1rem; background: transparent; border: 0; border-left: 3px solid var(--line); border-radius: 0;
+  font: 1rem/1.75 var(--sans); max-width: 72ch; max-height: none; overflow: visible;
+}
+.ledger-list { max-height: 14rem; overflow: auto; }
+
+/* Results: the message leads; where it was checked is one small line at the bottom. */
+.finding { padding: 1.1rem 1.25rem; }
+.finding-head { margin-bottom: 0.4rem; }
+.finding-title { font: 600 0.95rem/1.3 var(--sans); color: var(--muted); flex: 1 1 12rem; }
+.finding-why { font-size: 1.1rem; line-height: 1.6; }
+.finding-excerpt { margin: 0.7rem 0 0; font-size: 0.88rem; color: var(--muted); overflow-wrap: anywhere; }
+.finding-foot { margin: 0.9rem 0 0; font-size: 0.8rem; color: var(--muted); }
+.where-badge { margin: 0; white-space: normal; font-size: inherit; font-weight: 600; }
+@media (max-width: 640px) {
+  .action-menu { position: fixed; left: 16px; right: 16px; bottom: calc(var(--actionbar-h) + 12px + env(safe-area-inset-bottom, 0px)); min-width: 0; max-width: none; }
 }

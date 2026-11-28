@@ -264,9 +264,9 @@ export function severityLabel(s: ContractFinding["severity"]): string {
 export function findingSourceLabel(f: ContractFinding): { label: string; sent: boolean } {
   switch (f.analysisSource) {
     case "FIREBASE_AI_LOGIC_ONLY_IN_CLOUD":
-      return { label: "Deeper check in the cloud — cleaned text only", sent: true };
+      return { label: "Deeper check in the cloud, cleaned text only", sent: true };
     case "SIMULATED_CLOUD_SYNTHESIS":
-      return { label: "Practice mode — ran on this device, nothing was sent", sent: false };
+      return { label: "Practice mode, ran on this device, nothing was sent", sent: false };
     case "FIREBASE_AI_LOGIC_ONLY_ON_DEVICE_TRIAGE":
       return { label: "Checked by private AI on this device", sent: false };
     default:
@@ -275,7 +275,39 @@ export function findingSourceLabel(f: ContractFinding): { label: string; sent: b
 }
 
 export function cleanFindingTitle(title: string): string {
-  return title.replace(/^\s*\[[A-Z_]+\]\s*/, "").trim() || "Finding";
+  let t = title.replace(/^\s*\[[A-Z_]+\]\s*/, "");
+  // Engine names are for Advanced settings, not for the person reading the result.
+  t = t.replace(/\s*\((?:[^)]*(?:Firebase|ONLY_[A-Z_]+|Gemini|Nano|SDK)[^)]*)\)/gi, "");
+  t = t.replace(/^\s*(?:Local|On-Device|On Device)\s+(?:Deterministic\s+|Gemini\s+Nano\s+)?(?:Clause\s+)?Triage\s*:?\s*/i, "");
+  t = t.replace(/\b(?:Gemini\s+Nano|Firebase|Deterministic|Nano)\b\s*/gi, "").replace(/\bONLY_[A-Z_]+\b/g, "");
+  t = t.replace(/\s{2,}/g, " ").replace(/^[\s:\-]+|[\s:\-]+$/g, "");
+  return t || "Worth a closer look";
+}
+
+/** The toast shown after Continue hides details the person had not decided on. */
+export function undecidedHiddenText(n: number): string {
+  return `${n} undecided detail${n === 1 ? " was" : "s were"} hidden.`;
+}
+
+/** Feedback under the "Hide something we missed" form. */
+export function manualAddFeedback(
+  surface: string,
+  places: number,
+  categoryText: string
+): { ok: boolean; text: string } {
+  if (places === 0) {
+    return { ok: false, text: `We couldn't find \u201c${surface}\u201d in the document. Check the spelling and capitalization.` };
+  }
+  return {
+    ok: true,
+    text: `Hidden in ${places} place${places === 1 ? "" : "s"}. Added to the list as ${categoryText}.`,
+  };
+}
+
+/** One quiet line under the Results heading once the check is done. */
+export function finishLede(hiddenCount: number, sentToCloud: boolean): string {
+  const n = `${hiddenCount} detail${hiddenCount === 1 ? "" : "s"} kept private.`;
+  return `${n} ${sentToCloud ? "Only the cleaned text was sent." : "Nothing personal was sent."}`;
 }
 
 /** Strip class names and error-code prefixes so people see a sentence, not a stack trace. */
@@ -546,4 +578,36 @@ export function shieldProgress(decided: number, total: number): {
     shortLabel: complete ? "All decided" : `${d}/${t}`,
     ariaLabel: complete ? "All details decided" : `${d} of ${t} details decided`,
   };
+}
+
+/**
+ * Plain words for a finding. The built-in on-device checks carry engine wording in their title and
+ * rationale; people see what it means for them instead. Other findings keep their own message.
+ */
+export function plainFinding(f: ContractFinding): { title: string; message: string } {
+  if (f.findingId === "LOCAL-TRIAGE-DET-1") {
+    return f.severity === "HIGH"
+      ? {
+          title: "A limit on what they must pay may not hold",
+          message:
+            "This part talks about unlimited costs or things left out of a limit. Check whether a cap on what one side pays really applies, or whether another clause cancels it.",
+        }
+      : {
+          title: "Nothing unusual stood out",
+          message: "The part we checked looks like a standard clause. It is still worth reading the whole document yourself.",
+        };
+  }
+  let message = (f.rationale || f.rehydratedExcerpt || f.anonymizedExcerpt || "").trim();
+  message = message
+    .replace(/^\s*Nano weights unavailable locally;\s*/i, "")
+    .replace(/\s*with 0 outbound network requests/i, "")
+    .replace(/\bdeterministic\s+/gi, "");
+  if (message) message = message.charAt(0).toUpperCase() + message.slice(1);
+  return { title: cleanFindingTitle(f.title), message };
+}
+
+/** The small "where it was checked" line under a finding, without internal clause labels. */
+export function findingFootText(f: ContractFinding): string {
+  const refs = f.clauseRefs.filter((r) => !/^Selected Local Clause$/i.test(r));
+  return `${findingSourceLabel(f).label}${refs.length ? ` · ${refs.join(", ")}` : ""}`;
 }
