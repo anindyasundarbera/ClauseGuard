@@ -83,3 +83,39 @@ describe("Label-anchored field patterns", () => {
     expect(names).toEqual(["Dr. Meera Dutta", "Mr Ravi Shankar Pal"]);
   });
 });
+
+describe("Layout found in a real consultation summary (made-up values)", () => {
+  const SUMMARY = [
+    "CONSULTATION SUMMARY Patient MRN : 99120000033417 Consultation Date : 21/07/2026 01:15 PM Patient Name : Mr Ravi Shankar Pal Consultant : Dr. Meera Dutta Gender/Age/Dob : Male , 72 Years , 15/01/54 (Anaesthesiology) Patient Phone No : 9830012345 Consultation Type : OP , NEW VISIT Patient Address : NANDIGRAM, EAST",
+    "DISTRICT, NANDIGRAM,West",
+    "Bengal,India,-700001",
+    "CHIEF COMPLAINTS & HISTORY OF PRESENT ILLNESS",
+    "UNDER TREATMENT OF DR. ARJUN SEN FROM LAST 15 YEARS- DR ARJUN SEN SEEN AND CLEARED. FOLLOW UP BY DR SEN IVO SARCOIDOSIS - DR ARJUN SEN'S ADV",
+    "ECHO : MR MILD, MS NIL",
+  ].join("\n");
+
+  it("keeps an address that runs over several lines together, and stops before the next heading", () => {
+    const addr = runFieldDetectors(SUMMARY).filter((f) => f.category === "ADDRESS");
+    expect(addr.map((a) => a.surface)).toEqual(["NANDIGRAM, EAST\nDISTRICT, NANDIGRAM,West\nBengal,India,-700001"]);
+  });
+
+  it("finds the date of birth inside a combined Gender/Age/Dob field", () => {
+    const dob = runFieldDetectors(SUMMARY).filter((f) => f.category === "DATE_OF_BIRTH");
+    expect(dob.map((d) => d.surface)).toEqual(["15/01/54"]);
+  });
+
+  it("finds doctor names written in capitals in running notes, without the words after them", async () => {
+    const { findHonorificNames } = await import("../../src/core/detection/candidateFilters.ts");
+    const names = findHonorificNames(SUMMARY).map((h) => SUMMARY.slice(h.start, h.end));
+    expect(names).toEqual([
+      "Mr Ravi Shankar Pal",
+      "Dr. Meera Dutta",
+      "DR. ARJUN SEN",
+      "DR ARJUN SEN",
+      "DR SEN",
+      "DR ARJUN SEN",
+    ]);
+    // "MR" and "MS" here are heart-valve findings, not titles.
+    expect(names.join(" ")).not.toMatch(/MILD|NIL/);
+  });
+});

@@ -265,7 +265,7 @@ export function groupForReview(entities: DetectedEntity[]): Map<EntityCategory, 
   const byCat = new Map<EntityCategory, Map<string, DetectedEntity[]>>();
   for (const e of entities) {
     const rows = byCat.get(e.category) ?? new Map<string, DetectedEntity[]>();
-    const key = e.surface.trim().toLowerCase().replace(/\s+/g, " ");
+    const key = e.surface.trim().toLowerCase().replace(/\./g, "").replace(/\s+/g, " ");
     const row = rows.get(key) ?? [];
     row.push(e);
     rows.set(key, row);
